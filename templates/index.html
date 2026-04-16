@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NSLS COGS Manager</title>
+<style>
+:root {
+  --bg:        #0a1628;
+  --bg2:       #0f2044;
+  --bg3:       #162952;
+  --border:    #1e3a5f;
+  --accent:    #3b82f6;
+  --accent2:   #2563eb;
+  --text:      #e2e8f0;
+  --muted:     #7ea5cc;
+  --success:   #10b981;
+  --warn:      #f59e0b;
+  --danger:    #ef4444;
+  --stripe:    #0d1f3c;
+  --tag-bg:    #1e3a5f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+a{color:var(--accent)}
+
+/* ---- Header ---- */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px}
+.header h1{font-size:18px;font-weight:700;letter-spacing:.5px;color:#fff}
+.header .subtitle{font-size:12px;color:var(--muted);margin-left:10px}
+.sku-badge{background:var(--tag-bg);color:var(--accent);padding:2px 10px;border-radius:20px;font-size:12px;font-weight:600}
+
+/* ---- Tabs ---- */
+.tab-nav{background:var(--bg2);border-bottom:1px solid var(--border);display:flex;padding:0 24px;gap:2px}
+.tab-btn{background:none;border:none;color:var(--muted);padding:14px 18px;cursor:pointer;font-size:13px;font-weight:500;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* ---- Layout ---- */
+.tab-panel{display:none;padding:28px 24px;max-width:1400px;margin:0 auto}
+.tab-panel.active{display:block}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+
+/* ---- Cards ---- */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:20px}
+.card-title{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px}
+
+/* ---- Upload zone ---- */
+.upload-zone{border:2px dashed var(--border);border-radius:8px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(59,130,246,.06)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-icon{font-size:36px;margin-bottom:12px}
+.upload-zone p{color:var(--muted);font-size:13px}
+.upload-zone strong{color:var(--text);display:block;font-size:15px;margin-bottom:6px}
+
+/* ---- Buttons ---- */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2)}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{filter:brightness(1.1)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{filter:brightness(1.1)}
+.btn-ghost{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--border)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---- Tables ---- */
+.table-wrap{overflow-x:auto;border-radius:6px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--bg3);color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:nth-child(even){background:var(--stripe)}
+tbody td{padding:9px 12px;vertical-align:middle}
+tbody tr:hover{background:var(--bg3)}
+.mono{font-family:'SFMono-Regular',Consolas,monospace;font-size:12px}
+
+/* ---- Badges & status ---- */
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge-success{background:rgba(16,185,129,.15);color:var(--success)}
+.badge-warn{background:rgba(245,158,11,.15);color:var(--warn)}
+.badge-danger{background:rgba(239,68,68,.15);color:var(--danger)}
+.badge-muted{background:var(--tag-bg);color:var(--muted)}
+.badge-accent{background:rgba(59,130,246,.15);color:var(--accent)}
+
+/* ---- Forms ---- */
+input[type=text],input[type=number],input[type=password],input[type=url],select{
+  background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:13px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(59,130,246,.2)}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:500}
+.form-group{margin-bottom:14px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* ---- Checkbox ---- */
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+
+/* ---- Progress / spinner ---- */
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---- Alerts ---- */
+.alert{padding:12px 16px;border-radius:6px;font-size:13px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px}
+.alert-info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:#93c5fd}
+.alert-success{background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);color:#6ee7b7}
+.alert-warn{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#fcd34d}
+.alert-danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5}
+
+/* ---- Group separator ---- */
+.group-header{background:var(--bg3);padding:10px 16px;font-size:12px;font-weight:600;color:var(--accent);border-top:2px solid var(--accent);display:flex;justify-content:space-between;align-items:center}
+
+/* ---- Editable inline ---- */
+.editable{background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 6px;color:inherit;font-size:inherit;width:80px;text-align:right}
+.editable:hover{border-color:var(--border)}
+.editable:focus{border-color:var(--accent);background:var(--bg3);outline:none}
+
+/* ---- Modal ---- */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:100;display:none}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:28px;width:480px;max-width:95vw}
+.modal h3{font-size:16px;margin-bottom:20px;font-weight:600}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+
+/* ---- Misc ---- */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.section-title{font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.change-pos{color:var(--success)}
+.change-neg{color:var(--danger)}
+.text-muted{color:var(--muted)}
+.text-right{text-align:right}
+.text-center{text-align:center}
+hr.divider{border:none;border-top:1px solid var(--border);margin:20px 0}
+.empty-state{text-align:center;padding:48px 24px;color:var(--muted)}
+.empty-state .icon{font-size:40px;margin-bottom:12px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px}
+.stat-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+.stat-card .value{font-size:24px;font-weight:700;margin-top:4px}
+.approval-actions{display:flex;align-items:center;gap:12px;padding:16px;background:var(--bg3);border-radius:0 0 8px 8px;border-top:1px solid var(--border)}
+
+/* ---- SKU Picker ---- */
+.sku-pick-wrap{display:flex;align-items:center;gap:5px}
+.sku-pick-input{flex:1;min-width:180px;font-size:12px;padding:5px 8px;width:auto}
+#sku-drop-overlay{display:none;position:absolute;background:var(--bg2);border:1px solid var(--border);border-radius:6px;box-shadow:0 8px 28px rgba(0,0,0,.6);max-height:260px;overflow-y:auto;z-index:9999}
+.sku-drop-item{padding:7px 12px;cursor:pointer;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--border)}
+.sku-drop-item:last-child{border-bottom:none}
+.sku-drop-item:hover,.sku-drop-item.active{background:var(--bg3)}
+.sku-drop-label{color:var(--text);font-size:13px;line-height:1.3}
+.sku-drop-sku{color:var(--muted);font-size:11px;font-family:'SFMono-Regular',Consolas,monospace}
+.sku-drop-empty{padding:12px 16px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div style="display:flex;align-items:center;gap:12px">
+    <h1>NSLS COGS Manager</h1>
+    <span class="subtitle">Underground Sports Shop Invoice Processor</span>
+  </div>
+  <span class="sku-badge" id="sku-count-badge">{{ sku_count }} SKUs mapped</span>
+</div>
+
+<!-- Tabs -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('invoice')">&#128196; Invoice</button>
+  <button class="tab-btn" onclick="switchTab('cogs')">&#128200; COGS Calculator</button>
+  <button class="tab-btn" onclick="switchTab('approval')">&#9989; Approval</button>
+  <button class="tab-btn" onclick="switchTab('cogslog')">&#128202; COGS Log</button>
+  <button class="tab-btn" onclick="switchTab('settings')">&#9881; Settings</button>
+</div>
+
+<!-- ================================================================ INVOICE TAB -->
+<div id="tab-invoice" class="tab-panel active">
+  <div class="two-col" style="margin-bottom:24px">
+    <div>
+      <div class="card-title">Upload Invoice PDF</div>
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="pdf-file" accept=".pdf" onchange="handleFileSelect(this)">
+        <div class="upload-icon">&#128196;</div>
+        <strong id="upload-label">Drop PDF here or click to browse</strong>
+        <p>Underground Sports Shop invoice &bull; Max 16 MB</p>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <button class="btn btn-primary" onclick="uploadPDF()" id="upload-btn" disabled>
+          Parse Invoice
+        </button>
+        <span id="upload-spinner" style="display:none"><span class="spinner"></span></span>
+        <span id="upload-status" class="text-muted" style="font-size:12px"></span>
+      </div>
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+        <button class="btn btn-ghost btn-sm" onclick="toggleRefArea()" id="ref-toggle" style="font-size:12px">&#9654; SKU Reference <span style="color:var(--muted)">(optional)</span></button>
+        <div id="ref-area" style="display:none;margin-top:10px">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Paste order reference to confirm size-specific matches. Format: <span style="font-family:monospace">Product Name XS 5 S 5 M 10 L 5</span></div>
+          <textarea id="ref-textarea" placeholder="e.g. NSLS Contoured Fit OGIO Polo - Women's - Navy Blue XS 5 S 5 M 5 L 10 XL 5&#10;NSLS Contoured Fit OGIO Polo - Men's - Navy Blue XS 5 S 5 M 5 L 10 XL 5" style="width:100%;height:110px;resize:vertical;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:12px;font-family:monospace" oninput="onReferenceInput(this.value)"></textarea>
+          <div id="ref-parse-status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card-title">Parsed Invoice Info</div>
+      <div class="card" id="invoice-meta" style="display:none">
+        <div class="form-row" style="margin-bottom:10px">
+          <div><label>Invoice #</label><div id="meta-inv-num" class="mono" style="font-size:15px;font-weight:600;color:var(--accent)">—</div></div>
+          <div><label>Invoice Date</label><div id="meta-inv-date" class="mono" style="font-size:15px;font-weight:600">—</div></div>
+        </div>
+        <div class="form-row">
+          <div><label>Groups Found</label><div id="meta-groups" style="font-size:20px;font-weight:700">—</div></div>
+          <div><label>Total Line Items</label><div id="meta-items" style="font-size:20px;font-weight:700">—</div></div>
+        </div>
+      </div>
+      <div id="invoice-meta-empty" class="empty-state" style="padding:20px">
+        <div>Upload a PDF to see invoice details</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Duplicate invoice warning banner -->
+  <div id="duplicate-warning" style="display:none;margin-bottom:20px">
+    <div class="alert alert-warn" style="flex-direction:column;gap:10px">
+      <div>
+        <strong style="font-size:14px">&#9888; Invoice #<span id="dup-inv-num"></span> was already approved on <span id="dup-inv-date"></span>.</strong>
+        <div style="margin-top:4px;color:var(--text)">Approving again will push duplicate COGS updates to Shopify and log a duplicate entry in the Google Sheet.</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" style="background:rgba(245,158,11,.2);border:1px solid var(--warn);color:var(--warn)" onclick="continueDespiteDuplicate()">Continue Anyway</button>
+        <button class="btn btn-ghost btn-sm" onclick="cancelDuplicateUpload()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="parsed-results" style="display:none">
+    <div class="toolbar">
+      <span class="section-title">&#128203; Parsed Line Items</span>
+      <button class="btn btn-ghost btn-sm" onclick="switchTab('cogs')">View COGS Calculator &rarr;</button>
+      <button class="btn btn-ghost btn-sm" onclick="switchTab('settings')">Manage SKU Map &rarr;</button>
+    </div>
+    <div id="parsed-groups-container"></div>
+  </div>
+</div>
+
+<!-- ================================================================ COGS TAB -->
+<div id="tab-cogs" class="tab-panel">
+  <div id="cogs-empty" class="empty-state">
+    <div class="icon">&#128200;</div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:6px">No invoice loaded</div>
+    <div>Upload a PDF on the Invoice tab first</div>
+  </div>
+  <div id="cogs-content" style="display:none">
+    <div class="toolbar">
+      <span class="section-title">&#128200; COGS Calculator</span>
+      <button class="btn btn-ghost btn-sm" onclick="recalculate()">&#8635; Recalculate</button>
+      <button class="btn btn-primary btn-sm" onclick="switchTab('settings')">Check SKU Map &rarr;</button>
+      <button class="btn btn-success btn-sm" onclick="goToApproval()">Build Approval Table &rarr;</button>
+    </div>
+    <div class="alert alert-info" style="margin-bottom:16px">
+      &#128712; Shipping and fee amounts are editable — click any value to adjust, then hit <strong>Recalculate</strong>.
+    </div>
+    <div id="cogs-groups-container"></div>
+  </div>
+</div>
+
+<!-- ================================================================ SKU MAP PANEL (accessible via Settings) -->
+<div id="tab-skumap" class="tab-panel">
+  <div class="toolbar">
+    <button class="btn btn-ghost btn-sm" onclick="switchTab('settings')">&larr; Settings</button>
+    <span class="section-title">&#128279; SKU Mappings</span>
+    <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Mapping</button>
+    <span id="unmapped-alert" style="display:none" class="badge badge-warn">&#9888; Unmapped items from invoice</span>
+  </div>
+
+  <div id="unmapped-section" style="display:none;margin-bottom:24px">
+    <div class="card-title" style="color:var(--warn)">Unmapped Items from Current Invoice</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Item Code</th><th>Description</th><th>Color</th><th>Size</th><th>Qty</th><th>Action</th>
+        </tr></thead>
+        <tbody id="unmapped-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card-title">All Mappings ({{ sku_count }})</div>
+  <div class="toolbar">
+    <input type="text" id="sku-search" placeholder="Search item code or product name…" style="max-width:320px" oninput="filterSKUMap()">
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Item Code</th><th>Shopify SKU</th><th>Product Name</th><th>Size</th><th></th>
+      </tr></thead>
+      <tbody id="sku-map-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ================================================================ APPROVAL TAB -->
+<div id="tab-approval" class="tab-panel">
+  <div id="approval-pre-load">
+    <div class="empty-state">
+      <div class="icon">&#9989;</div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:8px">Ready to build approval table</div>
+      <div style="margin-bottom:20px;color:var(--muted)">Fetches live Shopify COGS and compares with calculated values.</div>
+      <button class="btn btn-primary" onclick="buildApprovalTable()" id="build-approval-btn">
+        Fetch Live Shopify Data &amp; Build Table
+      </button>
+      <div id="approval-load-spinner" style="display:none;margin-top:14px"><span class="spinner"></span> <span style="color:var(--muted)">Fetching Shopify data…</span></div>
+    </div>
+  </div>
+
+  <div id="approval-content" style="display:none">
+    <div class="toolbar">
+      <span class="section-title">&#9989; Approval Table</span>
+      <span id="approval-inv-badge" class="badge badge-accent"></span>
+      <button class="btn btn-ghost btn-sm" onclick="resetApproval()">&#8592; Back / Reload</button>
+    </div>
+
+    <div class="stat-grid" id="approval-stats"></div>
+
+    <div class="table-wrap" style="border-radius:8px 8px 0 0">
+      <table id="approval-table">
+        <thead><tr>
+          <th style="width:36px"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)" title="Select all changed rows"></th>
+          <th>SKU</th>
+          <th>Product</th>
+          <th>Color</th>
+          <th>Size</th>
+          <th class="text-right">Qty</th>
+          <th class="text-right">Prev COGS</th>
+          <th class="text-right">New COGS</th>
+          <th class="text-right">Change $</th>
+          <th>Status</th>
+        </tr></thead>
+        <tbody id="approval-tbody"></tbody>
+      </table>
+    </div>
+    <div class="approval-actions">
+      <button class="btn btn-success" onclick="approveSelected()" id="approve-btn">
+        &#9989; Approve &amp; Push Selected
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="selectAllChanged()">Select All Changed</button>
+      <button class="btn btn-ghost btn-sm" onclick="deselectAll()">Deselect All</button>
+      <span id="approve-spinner" style="display:none"><span class="spinner"></span></span>
+      <span id="approve-count" class="text-muted" style="margin-left:auto;font-size:12px"></span>
+    </div>
+    <div id="approval-results" style="margin-top:16px;display:none"></div>
+  </div>
+</div>
+
+<!-- ================================================================ COGS LOG TAB -->
+<div id="tab-cogslog" class="tab-panel" style="padding:0">
+  <iframe
+    src="https://docs.google.com/spreadsheets/d/e/2PACX-1vTVHhTIcD27ptvvMjte7dTufaWbfbDZgkoBEZSEywrVeJQ1pXVjYAhzKqEyrxqE-Oqc9GGrNy5xmFI9/pubhtml"
+    style="width:100%;height:calc(100vh - 112px);min-height:600px;border:none;display:block"
+    allowfullscreen>
+  </iframe>
+</div>
+
+<!-- ================================================================ SETTINGS TAB -->
+<div id="tab-settings" class="tab-panel">
+  <div style="max-width:560px">
+    <div class="card-title">API Configuration</div>
+    <div class="card">
+      <div class="form-group">
+        <label>Shopify Store (e.g. nsls-shop or nsls-shop.myshopify.com)</label>
+        <input type="text" id="cfg-store" placeholder="nsls-shop" value="{{ config.get('shopify_store','') }}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Shopify Client ID</label>
+          <input type="text" id="cfg-client-id"
+                 placeholder="{{ config.get('shopify_client_id','') or 'Client ID…' }}"
+                 value="{{ config.get('shopify_client_id','') }}">
+        </div>
+        <div class="form-group">
+          <label>Shopify Client Secret</label>
+          <input type="password" id="cfg-client-secret"
+                 placeholder="{{ '●●●●●● (saved)' if config.get('shopify_client_secret') else 'Client secret…' }}">
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">Leave blank to keep current secret</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Google Sheet Webhook URL (Apps Script)</label>
+        <input type="url" id="cfg-sheet" value="{{ config.get('google_sheet_url','') }}">
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
+        <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
+        <button class="btn btn-ghost btn-sm" onclick="testShopifyAuth()" id="cfg-test-btn">Test Auth</button>
+        <span id="cfg-status" class="text-muted" style="font-size:12px"></span>
+      </div>
+    </div>
+
+    <div style="margin-top:24px">
+      <div class="card-title">SKU Mappings</div>
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-weight:600;margin-bottom:2px">Manage SKU Map</div>
+          <div style="font-size:12px;color:var(--muted)">View, add, and edit item code → Shopify SKU mappings</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="switchTab('skumap')">&#128279; Open SKU Map</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ SKU PICKER DROPDOWN (shared, positioned via JS) -->
+<div id="sku-drop-overlay"></div>
+
+<!-- ================================================================ ADD SKU MODAL -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal" style="overflow:visible">
+    <h3>Add SKU Mapping</h3>
+    <div class="form-group">
+      <label>Item Code (from invoice)</label>
+      <input type="text" id="modal-item-code" placeholder="e.g. K810-L-Red">
+    </div>
+    <div class="form-group" style="position:relative">
+      <label>Search Shopify Product</label>
+      <div class="sku-pick-wrap">
+        <input type="text" class="sku-pick-input" id="modal-product-search"
+          placeholder="Type product name or SKU to search…"
+          oninput="filterModalPicker(this)" onfocus="openModalPicker(this)"
+          autocomplete="off">
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px">Select to auto-fill SKU and Product Name below</div>
+    </div>
+    <div class="form-group">
+      <label>Shopify SKU</label>
+      <input type="text" id="modal-sku" placeholder="Auto-filled from search, or enter manually">
+    </div>
+    <div class="form-group">
+      <label>Product Name (optional)</label>
+      <input type="text" id="modal-product-name" placeholder="e.g. NSLS Executive Board Polo - Men's - Red">
+    </div>
+    <div class="form-group">
+      <label>Size (optional)</label>
+      <input type="text" id="modal-size" placeholder="e.g. L">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSKUMapping()">Save Mapping</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ============================================================
+// State
+// ============================================================
+let invoiceData = null;     // full parsed + cogs result from /upload
+let invoiceDuplicate = false; // true if current invoice was previously approved
+let approvalRows = [];      // rows returned from /approval-data
+let skuMap = {};
+let skuOptions = [];              // [{sku, label}] for the unmapped-row picker
+let _activePickerRow = null;
+let _currentDropdownOptions = []; // current filtered list — indexed by dropdown row position
+let referenceEntries = [];  // parsed entries from SKU Reference textarea
+
+// ============================================================
+// Tab switching
+// ============================================================
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  const btns = document.querySelectorAll('.tab-btn');
+  const labels = ['invoice','cogs','approval','cogslog','settings'];
+  const idx = labels.indexOf(name);
+  if (idx >= 0) btns[idx].classList.add('active');
+
+  if (name === 'skumap') loadSKUMapTab();
+  if (name === 'approval') refreshApprovalState();
+}
+
+// ============================================================
+// Upload & Parse
+// ============================================================
+let selectedFile = null;
+
+function handleFileSelect(input) {
+  selectedFile = input.files[0];
+  if (selectedFile) {
+    document.getElementById('upload-label').textContent = selectedFile.name;
+    document.getElementById('upload-btn').disabled = false;
+  }
+}
+
+// Drag-over highlight
+const uploadZone = document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.pdf')) {
+    selectedFile = file;
+    document.getElementById('upload-label').textContent = file.name;
+    document.getElementById('upload-btn').disabled = false;
+  }
+});
+
+async function uploadPDF() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('upload-btn');
+  const spinner = document.getElementById('upload-spinner');
+  const status = document.getElementById('upload-status');
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  status.textContent = 'Parsing…';
+  document.getElementById('duplicate-warning').style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('pdf', selectedFile);
+  try {
+    const resp = await fetch('/upload', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (data.error) { showStatus(status, '&#10060; ' + data.error, 'danger'); return; }
+    invoiceData = data.data;
+    invoiceDuplicate = false;
+    if (data.duplicate_warning) {
+      // Show warning banner; hold off rendering until user confirms
+      const w = data.duplicate_warning;
+      document.getElementById('dup-inv-num').textContent  = invoiceData.invoice_number || '—';
+      document.getElementById('dup-inv-date').textContent = w.first_approved || '—';
+      document.getElementById('duplicate-warning').style.display = 'block';
+      showStatus(status, '&#9888; Duplicate invoice detected', 'warn');
+      return;  // wait for user action
+    }
+    _proceedWithParsedInvoice();
+    showStatus(status, '&#10003; Parsed successfully', 'success');
+  } catch(e) {
+    showStatus(status, '&#10060; ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function continueDespiteDuplicate() {
+  document.getElementById('duplicate-warning').style.display = 'none';
+  invoiceDuplicate = true;
+  _proceedWithParsedInvoice();
+}
+
+function cancelDuplicateUpload() {
+  document.getElementById('duplicate-warning').style.display = 'none';
+  document.getElementById('parsed-results').style.display = 'none';
+  document.getElementById('invoice-meta').style.display = 'none';
+  document.getElementById('invoice-meta-empty').style.display = 'block';
+  invoiceData = null;
+  invoiceDuplicate = false;
+  selectedFile = null;
+  document.getElementById('upload-label').textContent = 'Drop PDF here or click to browse';
+  document.getElementById('upload-btn').disabled = true;
+}
+
+function _proceedWithParsedInvoice() {
+  renderInvoiceMeta(invoiceData);
+  renderParsedGroups(invoiceData);
+  renderCOGSGroups(invoiceData.cogs_groups || []);
+  updateUnmappedSection();
+}
+
+function renderInvoiceMeta(d) {
+  document.getElementById('invoice-meta').style.display = 'block';
+  document.getElementById('invoice-meta-empty').style.display = 'none';
+  document.getElementById('meta-inv-num').textContent = d.invoice_number || '(not found)';
+  document.getElementById('meta-inv-date').textContent = d.invoice_date || '(not found)';
+  const groups = d.groups || [];
+  document.getElementById('meta-groups').textContent = groups.length;
+  const total = groups.reduce((s, g) => s + (g.items || []).length, 0);
+  document.getElementById('meta-items').textContent = total;
+}
+
+function renderParsedGroups(d) {
+  const container = document.getElementById('parsed-groups-container');
+  container.innerHTML = '';
+  const groups = d.groups || [];
+  if (!groups.length) {
+    container.innerHTML = '<div class="empty-state"><div>No line items could be parsed from this PDF.</div></div>';
+    document.getElementById('parsed-results').style.display = 'block';
+    return;
+  }
+  groups.forEach(g => {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '20px';
+    const fees_str = (g.fees || []).map(f => `${f.type}: $${f.amount.toFixed(2)}`).join(' &bull; ');
+    const ship_str = g.shipping > 0 ? `Shipping: $${g.shipping.toFixed(2)}` : 'No shipping line';
+    wrap.innerHTML = `
+      <div class="group-header">
+        <span>Group ${g.group_id} &mdash; ${(g.items||[]).length} item(s)</span>
+        <span style="font-size:11px;color:var(--muted)">${fees_str}${fees_str && ship_str ? ' &bull; ' : ''}${ship_str}</span>
+      </div>
+      <div class="table-wrap" style="border-top:none;border-radius:0 0 6px 6px">
+        <table>
+          <thead><tr>
+            <th>Item Code</th><th>Description</th><th>Color</th><th>Size</th>
+            <th class="text-right">Qty</th><th class="text-right">Unit Cost</th><th class="text-right">Total</th>
+          </tr></thead>
+          <tbody>${(g.items||[]).map(item => `
+            <tr>
+              <td class="mono">${esc(item.item_code)}</td>
+              <td>${esc(item.description)}</td>
+              <td>${esc(item.color)}</td>
+              <td>${esc(item.size)}</td>
+              <td class="text-right">${item.qty}</td>
+              <td class="text-right">$${(item.unit_cost||0).toFixed(2)}</td>
+              <td class="text-right">$${(item.total||0).toFixed(2)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    container.appendChild(wrap);
+  });
+  document.getElementById('parsed-results').style.display = 'block';
+}
+
+// ============================================================
+// COGS Calculator
+// ============================================================
+function renderCOGSGroups(cogsGroups) {
+  document.getElementById('cogs-empty').style.display = 'none';
+  document.getElementById('cogs-content').style.display = 'block';
+  const container = document.getElementById('cogs-groups-container');
+  container.innerHTML = '';
+
+  cogsGroups.forEach((g, gi) => {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '24px';
+    const fee_labels = (g.fees||[]).map(f =>
+      `${f.type}: <input class="editable" type="number" step="0.01" value="${f.amount.toFixed(2)}" data-gi="${gi}" data-fi="${(g.fees||[]).indexOf(f)}" data-type="fee" onchange="markDirty()">`
+    ).join(' &bull; ');
+
+    wrap.innerHTML = `
+      <div class="group-header">
+        <span>Group ${g.group_id} &mdash; ${g.total_units} total units &mdash; Fee/unit: <strong>$${(g.fee_per_unit||0).toFixed(4)}</strong></span>
+        <span style="font-size:12px">
+          ${fee_labels}${fee_labels ? ' &bull; ' : ''}
+          Shipping: <input class="editable" type="number" step="0.01" value="${(g.shipping||0).toFixed(2)}" data-gi="${gi}" data-type="shipping" onchange="markDirty()">
+          &bull; Total fees: <strong>$${(g.total_fees||0).toFixed(2)}</strong>
+        </span>
+      </div>
+      <div class="table-wrap" style="border-top:none;border-radius:0 0 6px 6px">
+        <table>
+          <thead><tr>
+            <th>Item Code</th><th>Description</th><th>Color</th><th>Size</th>
+            <th class="text-right">Qty</th>
+            <th class="text-right">Base Cost</th>
+            <th class="text-right">Fee/Unit</th>
+            <th class="text-right">Final COGS</th>
+            <th>SKU</th>
+          </tr></thead>
+          <tbody>${(g.items||[]).map(item => {
+            const mapping = findSkuForItem(item);
+            const sku = mapping ? (mapping.sku||mapping) : '';
+            const skuBadge = sku
+              ? `<span class="badge badge-accent mono">${esc(sku)}</span>`
+              : `<span class="badge badge-warn">unmapped</span>`;
+            return `<tr>
+              <td class="mono">${esc(item.item_code)}</td>
+              <td>${esc(item.description)}</td>
+              <td>${esc(item.color)}</td>
+              <td>${esc(item.size)}</td>
+              <td class="text-right">${item.qty}</td>
+              <td class="text-right">$${(item.unit_cost||0).toFixed(4)}</td>
+              <td class="text-right">$${(item.fee_per_unit||0).toFixed(4)}</td>
+              <td class="text-right"><strong>$${(item.final_cogs||0).toFixed(2)}</strong></td>
+              <td>${skuBadge}</td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    container.appendChild(wrap);
+  });
+  // Store editable inputs reference
+  container.querySelectorAll('.editable').forEach(inp => {
+    inp.addEventListener('change', markDirty);
+  });
+}
+
+let dirty = false;
+function markDirty() { dirty = true; }
+
+async function recalculate() {
+  if (!invoiceData) return;
+  // Read edited fee/shipping values back into groups
+  const container = document.getElementById('cogs-groups-container');
+  const groups = JSON.parse(JSON.stringify(invoiceData.groups));
+
+  container.querySelectorAll('.editable').forEach(inp => {
+    const gi = parseInt(inp.dataset.gi);
+    const type = inp.dataset.type;
+    const val = parseFloat(inp.value) || 0;
+    if (type === 'shipping') {
+      groups[gi].shipping = val;
+    } else if (type === 'fee') {
+      const fi = parseInt(inp.dataset.fi);
+      groups[gi].fees[fi].amount = val;
+    }
+  });
+
+  const resp = await fetch('/recalculate', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ groups })
+  });
+  const data = await resp.json();
+  if (data.success) {
+    invoiceData.groups = groups;
+    invoiceData.cogs_groups = data.cogs_groups;
+    renderCOGSGroups(data.cogs_groups);
+    dirty = false;
+  }
+}
+
+function goToApproval() {
+  if (dirty) { recalculate().then(() => switchTab('approval')); }
+  else { switchTab('approval'); }
+}
+
+// ============================================================
+// SKU Map Tab
+// ============================================================
+async function loadSKUMapTab() {
+  const resp = await fetch('/sku-map');
+  skuMap = await resp.json();
+  document.getElementById('sku-count-badge').textContent = Object.keys(skuMap).length + ' SKUs mapped';
+  renderSKUMapTable(skuMap);
+  updateUnmappedSection();
+}
+
+function renderSKUMapTable(map, filter='') {
+  const tbody = document.getElementById('sku-map-tbody');
+  const lf = filter.toLowerCase();
+  const entries = Object.entries(map).filter(([k, v]) => {
+    if (!lf) return true;
+    const name = typeof v === 'object' ? (v.product_name||'') : '';
+    const sku  = typeof v === 'object' ? (v.sku||v) : v;
+    return k.toLowerCase().includes(lf) || name.toLowerCase().includes(lf) || sku.toLowerCase().includes(lf);
+  });
+  if (!entries.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted" style="padding:24px">No mappings found</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map(([code, val]) => {
+    const sku  = typeof val === 'object' ? (val.sku||'') : val;
+    const name = typeof val === 'object' ? (val.product_name||'') : '';
+    const size = typeof val === 'object' ? (val.size||'') : '';
+    return `<tr>
+      <td class="mono">${esc(code)}</td>
+      <td class="mono">${esc(sku)}</td>
+      <td>${esc(name)}</td>
+      <td>${esc(size)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteSKUMapping('${esc(code)}')">Remove</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function filterSKUMap() {
+  renderSKUMapTable(skuMap, document.getElementById('sku-search').value);
+}
+
+function updateUnmappedSection() {
+  if (!invoiceData) return;
+  const unmappedItems = [];
+  (invoiceData.groups || []).forEach(g => {
+    (g.items || []).forEach(item => {
+      const code = (item.item_code || '').trim();
+      const desc = (item.description || '').trim();
+      // Include item if it has an item_code not yet in skuMap,
+      // OR if item_code is blank but description is present (parser put name in desc column).
+      if (code && skuMap[code]) return; // already mapped
+      if (!code && !desc) return;       // nothing to show
+      unmappedItems.push(item);
+    });
+  });
+  const sect = document.getElementById('unmapped-section');
+  const alert = document.getElementById('unmapped-alert');
+  if (unmappedItems.length) {
+    sect.style.display = 'block';
+    alert.style.display = 'inline-block';
+    document.getElementById('unmapped-tbody').innerHTML = unmappedItems.map(item => {
+      const code = (item.item_code || '').trim();
+      const desc = (item.description || '').trim();
+      return `<tr>
+        <td class="mono">${code ? esc(code) : '<span class="text-muted">—</span>'}</td>
+        <td>${esc(desc)}</td>
+        <td>${esc(item.color||'')}</td>
+        <td>${esc(item.size||'')}</td>
+        <td class="text-right">${item.qty||0}</td>
+        <td><button class="btn btn-primary btn-sm" onclick="openAddModal('${esc(code)}','${esc(desc)}','${esc(item.color||'')}','${esc(item.size||'')}')">+ Map</button></td>
+      </tr>`;
+    }).join('');
+  } else {
+    sect.style.display = 'none';
+    alert.style.display = 'none';
+  }
+}
+
+async function openAddModal(code='', desc='', color='', size='') {
+  // skuOptions are loaded eagerly at page init; re-fetch only if somehow empty
+  if (!skuOptions.length) {
+    try {
+      const d = await fetch('/sku-options').then(r => r.json());
+      if (Array.isArray(d)) skuOptions = d;
+    } catch(e) {}
+  }
+  document.getElementById('modal-item-code').value = code;
+  document.getElementById('modal-sku').value = '';
+  document.getElementById('modal-product-name').value = desc;
+  document.getElementById('modal-size').value = size;
+  document.getElementById('modal-product-search').value = '';
+  document.getElementById('add-modal').classList.add('open');
+  setTimeout(() => document.getElementById('modal-product-search').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('add-modal').classList.remove('open');
+  closeSkuDropdown();
+}
+
+async function saveSKUMapping() {
+  const item_code = document.getElementById('modal-item-code').value.trim();
+  const sku = document.getElementById('modal-sku').value.trim();
+  const product_name = document.getElementById('modal-product-name').value.trim();
+  const size = document.getElementById('modal-size').value.trim();
+  if (!item_code || !sku) { alert('Item code and SKU are required'); return; }
+
+  const resp = await fetch('/sku-map/add', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ item_code, sku, product_name, size })
+  });
+  const data = await resp.json();
+  if (data.success) {
+    skuMap = data.sku_map;
+    renderSKUMapTable(skuMap);
+    document.getElementById('sku-count-badge').textContent = Object.keys(skuMap).length + ' SKUs mapped';
+    updateUnmappedSection();
+    closeModal();
+    if (invoiceData) renderCOGSGroups(invoiceData.cogs_groups || []);
+  }
+}
+
+async function deleteSKUMapping(item_code) {
+  if (!confirm(`Remove mapping for "${item_code}"?`)) return;
+  const resp = await fetch('/sku-map/delete', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ item_code })
+  });
+  const data = await resp.json();
+  if (data.success) {
+    delete skuMap[item_code];
+    renderSKUMapTable(skuMap);
+    document.getElementById('sku-count-badge').textContent = Object.keys(skuMap).length + ' SKUs mapped';
+  }
+}
+
+// ============================================================
+// Approval Tab
+// ============================================================
+function refreshApprovalState() {
+  if (approvalRows.length) {
+    document.getElementById('approval-pre-load').style.display = 'none';
+    document.getElementById('approval-content').style.display = 'block';
+  } else {
+    document.getElementById('approval-pre-load').style.display = 'block';
+    document.getElementById('approval-content').style.display = 'none';
+  }
+}
+
+async function buildApprovalTable() {
+  if (!invoiceData) {
+    alert('Upload and parse an invoice first.');
+    return;
+  }
+  const btn = document.getElementById('build-approval-btn');
+  const spinner = document.getElementById('approval-load-spinner');
+  btn.disabled = true;
+  spinner.style.display = 'block';
+
+  try {
+    const [resp, optResp] = await Promise.all([
+      fetch('/approval-data', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          cogs_groups: invoiceData.cogs_groups || [],
+          invoice_number: invoiceData.invoice_number || '',
+          invoice_date: invoiceData.invoice_date || '',
+          reference: referenceEntries,
+        })
+      }),
+      fetch('/sku-options'),
+    ]);
+    const data = await resp.json();
+    const optData = await optResp.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    skuOptions = Array.isArray(optData) ? optData : [];
+    approvalRows = data.rows || [];
+    renderApprovalTable(approvalRows, data.invoice_number, data.invoice_date);
+    document.getElementById('approval-pre-load').style.display = 'none';
+    document.getElementById('approval-content').style.display = 'block';
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function _pickerInput(i) {
+  return `<div class="sku-pick-wrap" id="sku-pick-wrap-${i}">
+    <input type="text" class="sku-pick-input" id="spi-${i}"
+      placeholder="Search SKU or product…"
+      oninput="filterSkuPicker(this,${i})" onfocus="openSkuPicker(this,${i})"
+      autocomplete="off">
+    <button class="btn btn-ghost btn-sm" id="spc-${i}" onclick="clearSkuPick(${i})"
+      style="display:none;padding:2px 7px;line-height:1">×</button>
+  </div>`;
+}
+
+function renderApprovalTable(rows, invNum, invDate) {
+  const changed  = rows.filter(r => r.changed);
+  const unmapped = rows.filter(r => r.unmapped);
+  const notFound = rows.filter(r => r.not_found);
+  document.getElementById('approval-stats').innerHTML = `
+    <div class="stat-card"><div class="label">Total Rows</div><div class="value">${rows.length}</div></div>
+    <div class="stat-card"><div class="label">COGS Changed</div><div class="value" style="color:var(--warn)">${changed.length}</div></div>
+    <div class="stat-card"><div class="label">Unmapped</div><div class="value" style="color:var(--danger)">${unmapped.length}</div></div>
+    <div class="stat-card"><div class="label">Not in Shopify</div><div class="value" style="color:var(--muted)">${notFound.length}</div></div>`;
+
+  document.getElementById('approval-inv-badge').textContent = `Invoice ${invNum || '—'} \u2022 ${invDate || '—'}`;
+
+  const tbody = document.getElementById('approval-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding:24px">No rows</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((row, i) => {
+    let skuCell, prevCell, changeCell, statusCell, cbDisabled, cbChecked, rowStyle;
+
+    if (row.unmapped) {
+      const refBadgeU = row.ref_matched ? ` <span class="badge" style="background:rgba(16,185,129,.12);color:var(--success);font-size:10px;padding:1px 5px" title="Matched via SKU Reference">&#10003; ref</span>` : '';
+      skuCell    = _pickerInput(i);
+      prevCell   = `<span class="text-muted">—</span>`;
+      changeCell = `—`;
+      statusCell = `<span class="badge badge-danger">Unmapped</span>` + refBadgeU;
+      cbDisabled = 'disabled'; cbChecked = ''; rowStyle = 'style="opacity:.7"';
+
+    } else if (row.not_found) {
+      skuCell    = `<span class="mono">${esc(row.sku)}</span>`;
+      prevCell   = `<span class="text-muted">—</span>`;
+      changeCell = `—`;
+      statusCell = `<span class="badge badge-warn">Not in Shopify</span>`;
+      cbDisabled = 'disabled'; cbChecked = ''; rowStyle = 'style="opacity:.55"';
+
+    } else {
+      const isChanged = row.changed;
+      const amt = row.change_amount || 0;
+      const cls = amt > 0 ? 'change-pos' : (amt < 0 ? 'change-neg' : '');
+      const refBadge = row.ref_matched ? ` <span class="badge" style="background:rgba(16,185,129,.12);color:var(--success);font-size:10px;padding:1px 5px" title="Matched via SKU Reference">&#10003; ref</span>` : '';
+      skuCell    = `<span class="badge badge-accent mono">${esc(row.sku)}</span>`;
+      prevCell   = row.prev_cogs !== null ? '$'+row.prev_cogs.toFixed(2) : '<span class="text-muted">—</span>';
+      changeCell = amt !== 0 ? `<span class="${cls}">${amt.toFixed(2)}</span>` : '—';
+      statusCell = (isChanged ? `<span class="badge badge-warn">Changed</span>` : `<span class="badge badge-muted">No change</span>`) + refBadge;
+      cbDisabled = isChanged ? '' : 'disabled';
+      cbChecked  = isChanged ? 'checked' : '';
+      rowStyle   = isChanged ? '' : 'style="opacity:.55"';
+    }
+
+    return `<tr id="arow-${i}" ${rowStyle}>
+      <td><input type="checkbox" class="approval-cb" id="acb-${i}" data-idx="${i}" data-sku="${esc(row.sku||'')}" ${cbDisabled} ${cbChecked}></td>
+      <td id="sku-cell-${i}">${skuCell}</td>
+      <td>${esc(row.product_title||row.description||'—')}</td>
+      <td>${esc(row.color||'—')}</td>
+      <td>${esc(row.size||'—')}</td>
+      <td class="text-right">${row.qty}</td>
+      <td class="text-right" id="prev-cogs-cell-${i}">${prevCell}</td>
+      <td class="text-right"><strong>$${(row.new_cogs||0).toFixed(2)}</strong></td>
+      <td class="text-right" id="change-cell-${i}">${changeCell}</td>
+      <td id="status-cell-${i}">${statusCell}</td>
+    </tr>`;
+  }).join('');
+
+  updateApproveCount();
+  document.querySelectorAll('.approval-cb').forEach(cb => cb.addEventListener('change', updateApproveCount));
+}
+
+function updateApproveCount() {
+  const checked = document.querySelectorAll('.approval-cb:checked').length;
+  document.getElementById('approve-count').textContent = `${checked} row(s) selected`;
+}
+
+function toggleSelectAll(masterCb) {
+  document.querySelectorAll('.approval-cb:not([disabled])').forEach(cb => cb.checked = masterCb.checked);
+  updateApproveCount();
+}
+
+function selectAllChanged() {
+  document.querySelectorAll('.approval-cb:not([disabled])').forEach(cb => cb.checked = true);
+  document.getElementById('select-all-cb').checked = true;
+  updateApproveCount();
+}
+
+function deselectAll() {
+  document.querySelectorAll('.approval-cb').forEach(cb => cb.checked = false);
+  document.getElementById('select-all-cb').checked = false;
+  updateApproveCount();
+}
+
+async function approveSelected() {
+  const checked = Array.from(document.querySelectorAll('.approval-cb:checked'));
+  if (!checked.length) { alert('No rows selected.'); return; }
+
+  const approvedSkus = checked.map(cb => cb.dataset.sku).filter(Boolean);
+  if (!confirm(`Approve and push ${approvedSkus.length} SKU(s) to Shopify and Google Sheets?`)) return;
+
+  const btn = document.getElementById('approve-btn');
+  const spinner = document.getElementById('approve-spinner');
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+
+  try {
+    // Save any manually-assigned SKU mappings the user ticked "Save to SKU Map"
+    const saveMapCbs = Array.from(document.querySelectorAll('.save-map-cb:checked'));
+    for (const cb of saveMapCbs) {
+      const idx = parseInt(cb.dataset.idx);
+      const row = approvalRows[idx];
+      if (!row || !row.sku) continue;
+      const ic = (row.item_code || '').trim();
+      const sz = (row.size  || '').trim();
+      const cl = (row.color || '').trim();
+      let key = ic;
+      if (sz && cl) key = `${ic}-${sz}-${cl}`;
+      else if (sz)  key = `${ic}-${sz}`;
+      try {
+        await fetch('/sku-map/add', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ item_code: key, sku: row.sku, product_name: row.product_title || '', size: sz })
+        });
+        // Update local skuMap so the badge count refreshes if user visits SKU Map tab
+        skuMap[key] = { sku: row.sku, product_name: row.product_title || '', size: sz };
+      } catch(e) { /* non-fatal */ }
+    }
+
+    const resp = await fetch('/approve', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        approved_skus: approvedSkus,
+        invoice_number: invoiceData?.invoice_number || '',
+        invoice_date: invoiceData?.invoice_date || '',
+        rows: approvalRows,
+        is_duplicate: invoiceDuplicate,
+      })
+    });
+    const data = await resp.json();
+    renderApprovalResults(data);
+  } catch(e) {
+    showApprovalError(e.message);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function renderApprovalResults(data) {
+  const div = document.getElementById('approval-results');
+  div.style.display = 'block';
+  const r = data.results || {};
+  const updated = (r.shopify||[]).filter(x => x.status==='updated').length;
+  const errors = r.errors || [];
+  // Log the exact payload sent to Google Sheets for debugging
+  if (r.sheet) {
+    console.log('[NSLS] Google Sheet push — HTTP', r.sheet.status);
+    console.log('[NSLS] Sheet payload sent:', JSON.stringify(r.sheet.payload, null, 2));
+    console.log('[NSLS] Sheet response body:', r.sheet.body);
+  }
+  let html = `<div class="alert alert-success">&#10003; <strong>${updated} SKU(s) updated in Shopify</strong></div>`;
+  if (r.sheet) {
+    const ok = r.sheet.status >= 200 && r.sheet.status < 300;
+    html += `<div class="alert ${ok?'alert-success':'alert-warn'}">Google Sheet: HTTP ${r.sheet.status}</div>`;
+  }
+  if (errors.length) {
+    html += `<div class="alert alert-danger"><strong>Errors:</strong><br>${errors.map(esc).join('<br>')}</div>`;
+  }
+  div.innerHTML = html;
+}
+
+function showApprovalError(msg) {
+  const div = document.getElementById('approval-results');
+  div.style.display = 'block';
+  div.innerHTML = `<div class="alert alert-danger">&#10060; ${esc(msg)}</div>`;
+}
+
+function resetApproval() {
+  approvalRows = [];
+  document.getElementById('approval-content').style.display = 'none';
+  document.getElementById('approval-pre-load').style.display = 'block';
+  document.getElementById('approval-results').style.display = 'none';
+  document.getElementById('build-approval-btn').disabled = false;
+  closeSkuDropdown();
+}
+
+// ============================================================
+// SKU Picker — for unmapped rows in the Approval table
+// ============================================================
+
+function openSkuPicker(input, rowIdx) {
+  _activePickerRow = rowIdx;
+  _renderSkuDropdown(input);
+}
+
+function filterSkuPicker(input, rowIdx) {
+  _activePickerRow = rowIdx;
+  _renderSkuDropdown(input);
+}
+
+// Modal product search (reuses same dropdown overlay)
+function openModalPicker(input) {
+  _activePickerRow = 'modal';
+  _renderSkuDropdown(input);
+}
+
+function filterModalPicker(input) {
+  _activePickerRow = 'modal';
+  _renderSkuDropdown(input);
+}
+
+function _renderSkuDropdown(input) {
+  const q = (input.value || '').trim().toLowerCase();
+  const all = skuOptions;
+  const filtered = q.length === 0
+    ? all.slice(0, 200)
+    : all.filter(o => o.label.toLowerCase().includes(q) || o.sku.toLowerCase().includes(q)).slice(0, 200);
+
+  const overlay = document.getElementById('sku-drop-overlay');
+  const rect = input.getBoundingClientRect();
+  overlay.style.top   = (rect.bottom + window.scrollY + 3) + 'px';
+  overlay.style.left  = (rect.left   + window.scrollX)     + 'px';
+  overlay.style.width = Math.max(rect.width, 360) + 'px';
+  overlay.style.display = 'block';
+
+  if (!filtered.length) {
+    overlay.innerHTML = `<div class="sku-drop-empty">No matches found</div>`;
+    _currentDropdownOptions = [];
+    return;
+  }
+  _currentDropdownOptions = filtered;
+  overlay.innerHTML = filtered.map((o, i) =>
+    `<div class="sku-drop-item" onmousedown="selectSkuOption(event,${i})">
+      <span class="sku-drop-label">${esc(o.label)}</span>
+      <span class="sku-drop-sku">${esc(o.sku)}</span>
+    </div>`
+  ).join('');
+}
+
+function closeSkuDropdown() {
+  const overlay = document.getElementById('sku-drop-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _activePickerRow = null;
+}
+
+async function selectSkuOption(evt, optIdx) {
+  evt.preventDefault(); // prevent blur firing before mousedown completes
+  const opt = _currentDropdownOptions[optIdx];
+  if (!opt) return;
+  const sku   = opt.sku;
+  const label = opt.label;
+  const idx   = _activePickerRow;
+  if (idx === null) return;
+  closeSkuDropdown();
+
+  // ---- Modal context: just fill the SKU and Product Name fields ----
+  if (idx === 'modal') {
+    document.getElementById('modal-sku').value = sku;
+    // Use the part before " — " as the clean product name
+    document.getElementById('modal-product-name').value = label.split(' — ')[0] || label;
+    document.getElementById('modal-product-search').value = label;
+    return;
+  }
+
+  // ---- Approval table context ----
+  // Disable input and show the clear button
+  const input = document.getElementById('spi-' + idx);
+  if (input) { input.value = label + ' (' + sku + ')'; input.disabled = true; }
+  const clearBtn = document.getElementById('spc-' + idx);
+  if (clearBtn) clearBtn.style.display = 'inline-flex';
+
+  const statusCell = document.getElementById('status-cell-' + idx);
+  if (statusCell) statusCell.innerHTML = `<span class="text-muted" style="font-size:11px">Resolving…</span>`;
+
+  try {
+    const resp = await fetch('/resolve-sku?sku=' + encodeURIComponent(sku));
+    const data = await resp.json();
+
+    if (data.error || !data.found) {
+      if (statusCell) statusCell.innerHTML =
+        `<span class="badge badge-warn">${esc(data.error || 'Not found in Shopify')}</span>`;
+      return;
+    }
+
+    const newCogs   = approvalRows[idx].new_cogs || 0;
+    const prevCogs  = data.prev_cogs;
+    const changeAmt = Math.round((newCogs - prevCogs) * 100) / 100;
+    // For a manually-resolved unmapped row, always treat as changed so the
+    // checkbox is enabled and the user can include it in the approval push.
+    const changed = true;
+
+    // Persist selection into approvalRows so /approve sends correct data
+    const row = approvalRows[idx];
+    approvalRows[idx] = {
+      ...row,
+      sku,
+      inventory_item_id: data.inventory_item_id,
+      prev_cogs: prevCogs,
+      product_title: data.product_title || row.product_title,
+      changed: true,
+      change_amount: changeAmt,
+      unmapped: false,
+    };
+
+    // Immediately save the mapping to sku_map.json so it persists for future invoices
+    const ic = (row.item_code || '').trim();
+    const sz = (row.size  || '').trim();
+    const cl = (row.color || '').trim();
+    if (ic) {
+      let mapKey = ic;
+      if (sz && cl) mapKey = `${ic}-${sz}-${cl}`;
+      else if (sz)  mapKey = `${ic}-${sz}`;
+      // For items with known logo-type variants (NE904, DT607), never save a bare
+      // item_code key — that would stomp both variants on the next run.
+      // Instead extract the logo type from the product title if size was blank.
+      const variantItems = ['NE904', 'DT607'];
+      if (variantItems.includes(ic.toUpperCase()) && mapKey === ic) {
+        const titleLc = (data.product_title || row.product_title || row.description || '').toLowerCase();
+        if (titleLc.includes('crest')) mapKey = `${ic}-Crest Logo`;
+        else if (titleLc.includes('nsls') && ic.toUpperCase() === 'NE904') mapKey = `${ic}-NSLS Logo`;
+        else if (titleLc.includes('greek')) mapKey = `${ic}-Greek Letters`;
+        else if (titleLc.includes('nsls') && ic.toUpperCase() === 'DT607') mapKey = `${ic}-NSLS Letters`;
+        // If we still can't disambiguate, skip the auto-save (return without saving)
+        if (mapKey === ic) {
+          // Don't save a bare key for a variant item
+          mapKey = null;
+        }
+      }
+      const productTitle = data.product_title || row.product_title || '';
+      if (mapKey) {
+        fetch('/sku-map/add', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ item_code: mapKey, sku, product_name: productTitle, size: sz })
+        }).then(r => r.json()).then(d => {
+          if (d.success) {
+            skuMap = d.sku_map;
+            document.getElementById('sku-count-badge').textContent = Object.keys(skuMap).length + ' SKUs mapped';
+          }
+        }).catch(() => {});
+      }
+    }
+
+    // Update SKU cell to show badge + clear button
+    const skuCell = document.getElementById('sku-cell-' + idx);
+    if (skuCell) skuCell.innerHTML =
+      `<span class="badge badge-accent mono">${esc(sku)}</span>
+       <button class="btn btn-ghost btn-sm" onclick="clearSkuPick(${idx})"
+         style="padding:2px 6px;margin-left:4px;font-size:13px;line-height:1">×</button>`;
+
+    // Update Prev COGS cell
+    const prevCell = document.getElementById('prev-cogs-cell-' + idx);
+    if (prevCell) prevCell.textContent = prevCogs !== null ? '$' + prevCogs.toFixed(2) : '—';
+
+    // Update Change $ cell
+    const changeCell = document.getElementById('change-cell-' + idx);
+    if (changeCell) {
+      const cls = changeAmt > 0 ? 'change-pos' : (changeAmt < 0 ? 'change-neg' : '');
+      changeCell.innerHTML = changeAmt !== 0 ? `<span class="${cls}">${changeAmt.toFixed(2)}</span>` : '—';
+    }
+
+    // Enable approval checkbox
+    const cb = document.getElementById('acb-' + idx);
+    if (cb) { cb.disabled = !changed; cb.checked = changed; cb.dataset.sku = sku; }
+
+    const rowEl = document.getElementById('arow-' + idx);
+    if (rowEl) rowEl.style.opacity = changed ? '' : '0.55';
+
+    // Update Status cell with badge + Save-to-SKU-Map checkbox
+    if (statusCell) {
+      const badge = changed
+        ? `<span class="badge badge-warn">Changed</span>`
+        : `<span class="badge badge-muted">No change</span>`;
+      statusCell.innerHTML = `<div style="display:flex;flex-direction:column;gap:5px">
+        ${badge}
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:var(--muted)">
+          <input type="checkbox" class="save-map-cb" data-idx="${idx}" checked
+            style="width:13px;height:13px;accent-color:var(--accent)">
+          Save to SKU Map
+        </label>
+      </div>`;
+    }
+
+    updateApproveCount();
+  } catch(e) {
+    if (statusCell) statusCell.innerHTML = `<span class="badge badge-danger">Error</span>`;
+  }
+}
+
+function clearSkuPick(idx) {
+  // Re-inject the picker input
+  const skuCell = document.getElementById('sku-cell-' + idx);
+  if (skuCell) skuCell.innerHTML = _pickerInput(idx);
+
+  const prevCell = document.getElementById('prev-cogs-cell-' + idx);
+  if (prevCell) prevCell.innerHTML = `<span class="text-muted">—</span>`;
+
+  const changeCell = document.getElementById('change-cell-' + idx);
+  if (changeCell) changeCell.textContent = '—';
+
+  const statusCell = document.getElementById('status-cell-' + idx);
+  if (statusCell) statusCell.innerHTML = `<span class="badge badge-danger">Unmapped</span>`;
+
+  const cb = document.getElementById('acb-' + idx);
+  if (cb) { cb.disabled = true; cb.checked = false; cb.dataset.sku = ''; }
+
+  const rowEl = document.getElementById('arow-' + idx);
+  if (rowEl) rowEl.style.opacity = '0.7';
+
+  approvalRows[idx] = {
+    ...approvalRows[idx],
+    sku: '', inventory_item_id: null, prev_cogs: null,
+    changed: false, unmapped: true,
+  };
+
+  updateApproveCount();
+  // Focus the newly-created input
+  const input = document.getElementById('spi-' + idx);
+  if (input) input.focus();
+}
+
+
+// ============================================================
+// Settings
+// ============================================================
+async function saveConfig() {
+  const store    = document.getElementById('cfg-store').value.trim();
+  const clientId = document.getElementById('cfg-client-id').value.trim();
+  const secret   = document.getElementById('cfg-client-secret').value.trim();
+  const sheet    = document.getElementById('cfg-sheet').value.trim();
+
+  // Only send fields that have a value — backend skips empty strings so
+  // leaving secret blank preserves the existing stored value.
+  const payload = { shopify_store: store, google_sheet_url: sheet };
+  if (clientId) payload.shopify_client_id = clientId;
+  if (secret)   payload.shopify_client_secret = secret;
+
+  const resp = await fetch('/config', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  const data = await resp.json();
+  const status = document.getElementById('cfg-status');
+  if (data.success) {
+    showStatus(status, '&#10003; Saved', 'success');
+    document.getElementById('cfg-client-secret').value = '';
+    document.getElementById('cfg-client-secret').placeholder = '●●●●●● (saved)';
+  } else {
+    showStatus(status, '&#10060; Error saving', 'danger');
+  }
+}
+
+async function testShopifyAuth() {
+  const btn = document.getElementById('cfg-test-btn');
+  const status = document.getElementById('cfg-status');
+  btn.disabled = true;
+  showStatus(status, 'Testing…', null);
+  try {
+    const resp = await fetch('/shopify-auth-test');
+    const data = await resp.json();
+    if (data.success) {
+      showStatus(status, '&#10003; Auth OK — token acquired', 'success');
+    } else {
+      showStatus(status, '&#10060; ' + (data.error || 'Auth failed'), 'danger');
+    }
+  } catch(e) {
+    showStatus(status, '&#10060; ' + e.message, 'danger');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ============================================================
+// SKU matching — mirrors the server-side find_sku_for_item()
+// ============================================================
+function findSkuForItem(item) {
+  const code  = (item.item_code   || '').trim();
+  const size  = (item.size        || '').trim();
+  const color = (item.color       || '').trim();
+  const desc  = (item.description || '').trim().toLowerCase();
+
+  const parts = code.split('-');
+  const baseCodes = [code, ...Array.from({length: parts.length-1}, (_, i) => parts.slice(0, parts.length-1-i).join('-'))];
+
+  if (!size && !color) {
+    // No size/color: exact/base-code lookup first
+    for (const base of baseCodes) if (base && skuMap[base]) return skuMap[base];
+  } else {
+    // Size and/or color present: composites take priority over base key
+    for (const base of baseCodes) {
+      if (size && color) {
+        if (skuMap[`${base}-${size}-${color}`]) return skuMap[`${base}-${size}-${color}`];
+        if (skuMap[`${base}-${color}-${size}`]) return skuMap[`${base}-${color}-${size}`];
+      }
+      if (size && skuMap[`${base}-${size}`]) return skuMap[`${base}-${size}`];
+    }
+    // Prefix scan: size known, color blank
+    if (size && !color) {
+      for (const base of baseCodes) {
+        const pfx = `${base}-${size}-`;
+        for (const [k, v] of Object.entries(skuMap)) if (k.startsWith(pfx)) return v;
+      }
+    }
+    // Fall back to bare base key
+    for (const base of baseCodes) if (base && skuMap[base]) return skuMap[base];
+  }
+
+  // Key-substring check: e.g. item_code "License Plate Holder" → key "License Plate"
+  if (code) {
+    const icLower = code.toLowerCase();
+    for (const [key, val] of Object.entries(skuMap)) {
+      if (typeof val !== 'object') continue;
+      const kl = key.trim().toLowerCase();
+      if (kl.length >= 3 && (icLower.startsWith(kl) || kl.startsWith(icLower))) return val;
+    }
+  }
+
+  // Partial description match
+  if (desc) {
+    const words = desc.split(/\s+/).filter(w => w.length >= 6);
+    for (const val of Object.values(skuMap)) {
+      const pn = (typeof val === 'object' ? (val.product_name||'') : '').toLowerCase();
+      if (pn && words.some(w => pn.includes(w))) return val;
+    }
+  }
+  return null;
+}
+
+// ============================================================
+// Utilities
+// ============================================================
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function showStatus(el, msg, type) {
+  const colors = { success: 'var(--success)', danger: 'var(--danger)', warn: 'var(--warn)' };
+  el.innerHTML = msg;
+  el.style.color = colors[type] || 'var(--muted)';
+  setTimeout(() => { el.innerHTML = ''; el.style.color = ''; }, 4000);
+}
+
+// Close modals on overlay click
+document.getElementById('add-modal').addEventListener('click', e => { if(e.target===e.currentTarget) closeModal(); });
+
+// Close SKU picker dropdown on outside click
+document.addEventListener('mousedown', e => {
+  const overlay = document.getElementById('sku-drop-overlay');
+  if (overlay && overlay.style.display !== 'none' &&
+      !overlay.contains(e.target) && !e.target.classList.contains('sku-pick-input')) {
+    closeSkuDropdown();
+  }
+});
+
+// ============================================================
+// SKU Reference
+// ============================================================
+function toggleRefArea() {
+  const area = document.getElementById('ref-area');
+  const btn  = document.getElementById('ref-toggle');
+  const open = area.style.display === 'none';
+  area.style.display = open ? 'block' : 'none';
+  btn.innerHTML = (open ? '&#9660;' : '&#9654;') + ' SKU Reference <span style="color:var(--muted)">(optional)</span>';
+}
+
+function parseReferenceText(text) {
+  // Each line: "Product Name [size qty size qty ...]"
+  // Sizes are 2–4 char tokens matching XS|S|M|L|XL|2XL|3XL|4XL (case-insensitive)
+  // qty follows immediately after each size token
+  const sizeRe = /\b(4XL|3XL|2XL|XL|XS|SM|MD|LG|[SMLX]{1,2})\b/gi;
+  const entries = [];
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    // Find all size+qty pairs
+    const pairs = [];
+    let m;
+    while ((m = sizeRe.exec(line)) !== null) {
+      const size = m[1].toUpperCase();
+      // next token after size should be qty
+      const rest = line.slice(m.index + m[0].length).trimStart();
+      const qtyMatch = rest.match(/^(\d+)/);
+      const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 0;
+      pairs.push({ size, qty });
+    }
+    sizeRe.lastIndex = 0; // reset for next line
+    if (!pairs.length) continue;
+    // Product name = everything before the first size token
+    const firstSizeIdx = line.search(sizeRe);
+    sizeRe.lastIndex = 0;
+    const productName = (firstSizeIdx > 0 ? line.slice(0, firstSizeIdx) : line).trim().replace(/[-–,]+$/, '').trim();
+    if (!productName) continue;
+    pairs.forEach(({ size, qty }) => {
+      entries.push({ product_name: productName, size, qty });
+    });
+  }
+  return entries;
+}
+
+function onReferenceInput(value) {
+  sessionStorage.setItem('sku_reference_text', value);
+  referenceEntries = parseReferenceText(value);
+  const el = document.getElementById('ref-parse-status');
+  if (!value.trim()) { el.textContent = ''; return; }
+  const lines = value.trim().split('\n').filter(l => l.trim()).length;
+  el.textContent = `Parsed ${referenceEntries.length} size entries from ${lines} line${lines !== 1 ? 's' : ''}.`;
+}
+
+// ============================================================
+// Init — load sku map and all SKU options eagerly so the picker is ready immediately
+// ============================================================
+(async () => {
+  const [mapResp, optResp] = await Promise.all([
+    fetch('/sku-map'),
+    fetch('/sku-options'),
+  ]);
+  skuMap = await mapResp.json();
+  const opts = await optResp.json();
+  if (Array.isArray(opts)) skuOptions = opts;
+
+  // Restore reference textarea from sessionStorage
+  const savedRef = sessionStorage.getItem('sku_reference_text');
+  if (savedRef) {
+    const ta = document.getElementById('ref-textarea');
+    if (ta) {
+      ta.value = savedRef;
+      referenceEntries = parseReferenceText(savedRef);
+      if (savedRef.trim()) {
+        // Auto-open the panel if there's content
+        const area = document.getElementById('ref-area');
+        const btn  = document.getElementById('ref-toggle');
+        area.style.display = 'block';
+        btn.innerHTML = '&#9660; SKU Reference <span style="color:var(--muted)">(optional)</span>';
+        const lines = savedRef.trim().split('\n').filter(l => l.trim()).length;
+        const el = document.getElementById('ref-parse-status');
+        el.textContent = `Parsed ${referenceEntries.length} size entries from ${lines} line${lines !== 1 ? 's' : ''}.`;
+      }
+    }
+  }
+})();
+</script>
+</body>
+</html>

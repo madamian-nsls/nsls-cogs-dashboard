@@ -1,0 +1,480 @@
+{
+  "Classic Jogger": {
+    "sku": "vintage-seal-sweatpants-03-l",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "L"
+  },
+  "Classic Jogger-S-Black": {
+    "sku": "vintage-seal-sweatpants-01-s",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "S"
+  },
+  "Classic Jogger-L-Black": {
+    "sku": "vintage-seal-sweatpants-03-l",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "L"
+  },
+  "Classic Jogger-XL-Black": {
+    "sku": "vintage-seal-sweatpants-04-xl",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "XL"
+  },
+  "Classic Jogger-2XL-Black": {
+    "sku": "vintage-seal-sweatpants-05-2xl",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "2XL"
+  },
+  "K810": {
+    "sku": "mens-red-executive-polo-02-m",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "M"
+  },
+  "LK810": {
+    "sku": "womens-white-executive-polo-02-m",
+    "product_name": "NSLS Executive Board Polo - Women's - White",
+    "size": "M"
+  },
+  "LOG101": {
+    "sku": "womens-polo-navy-02-m",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
+    "size": "M"
+  },
+  "LOG125": {
+    "sku": "womens-polo-black-02-m",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "M"
+  },
+  "OG125": {
+    "sku": "mens-polo-black-05-2xl",
+    "product_name": "NSLS Relaxed Fit OGIO Polo - Black",
+    "size": "2XL"
+  },
+  "8102": {
+    "sku": "vintage-seal-sweatpants-03-l",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "L"
+  },
+  "K810-L-Red": {
+    "sku": "mens-red-executive-polo-03-l",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "L"
+  },
+  "K810-3XL-Red": {
+    "sku": "mens-red-executive-polo-06-3xl",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "3XL"
+  },
+  "K810-M-Red": {
+    "sku": "mens-red-executive-polo-02-m",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "M"
+  },
+  "K810-XL-Red": {
+    "sku": "mens-red-executive-polo-04-xl",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "XL"
+  },
+  "K810-2XL-Red": {
+    "sku": "mens-red-executive-polo-05-2xl",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "2XL"
+  },
+  "K810-S-White": {
+    "sku": "mens-white-executive-polo-01-s",
+    "product_name": "NSLS Executive Board Polo - White",
+    "size": "S"
+  },
+  "LK810-M-White": {
+    "sku": "womens-white-executive-polo-02-m",
+    "product_name": "NSLS Executive Board Polo - Women's - White",
+    "size": "M"
+  },
+  "LK810-L-White": {
+    "sku": "womens-white-executive-polo-03-l",
+    "product_name": "NSLS Executive Board Polo - Women's - White",
+    "size": "L"
+  },
+  "LOG125-XS-Blacktop":  {"sku": "womens-polo-black-00-xs",  "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "XS"},
+  "LOG125-S-Blacktop":   {"sku": "womens-polo-black-01-s",   "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "S"},
+  "LOG125-M-Blacktop":   {"sku": "womens-polo-black-02-m",   "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "M"},
+  "LOG125-L-Blacktop":   {"sku": "womens-polo-black-03-l",   "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "L"},
+  "LOG125-XL-Blacktop":  {"sku": "womens-polo-black-04-xl",  "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "XL"},
+  "LOG125-2XL-Blacktop": {"sku": "womens-polo-black-05-2xl", "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "2XL"},
+  "LOG125-3XL-Blacktop": {"sku": "womens-polo-black-06-3xl", "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "3XL"},
+  "LOG125-4XL-Blacktop": {"sku": "womens-polo-black-07-4xl", "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "4XL"},
+  "LOG101-S-Navy": {
+    "sku": "womens-polo-navy-01-s",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
+    "size": "S"
+  },
+  "LOG101-M-Navy": {
+    "sku": "womens-polo-navy-02-m",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
+    "size": "M"
+  },
+  "LOG101-L-Navy": {
+    "sku": "womens-polo-navy-03-l",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
+    "size": "L"
+  },
+  "LOG101-XL-Navy": {
+    "sku": "womens-polo-navy-04-xl",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
+    "size": "XL"
+  },
+  "OG125-2XL-Blacktop": {
+    "sku": "mens-polo-black-05-2xl",
+    "product_name": "NSLS Relaxed Fit OGIO Polo - Black",
+    "size": "2XL"
+  },
+  "NEB800": {
+    "sku": "Society-Weekender-Bag",
+    "product_name": "Large Society Weekender Duffel",
+    "size": ""
+  },
+  "8102-S-Black": {
+    "sku": "vintage-seal-sweatpants-01-s",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "S"
+  },
+  "8102-L-Black": {
+    "sku": "vintage-seal-sweatpants-03-l",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "L"
+  },
+  "8102-XL-Black": {
+    "sku": "vintage-seal-sweatpants-04-xl",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "XL"
+  },
+  "8102-2XL-Black": {
+    "sku": "vintage-seal-sweatpants-05-2xl",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "2XL"
+  },
+  "Stickers": {
+    "sku": "sticker-i-heart-nsls",
+    "product_name": "Sticker - I Heart the NSLS",
+    "size": ""
+  },
+  "Pennants": {
+    "sku": "npm-p",
+    "product_name": "Sigma Alpha Pi Pennant",
+    "size": ""
+  },
+  "water bottles": {
+    "sku": "nmp-wb",
+    "product_name": "NSLS Water Bottle",
+    "size": ""
+  },
+  "Certificate Covers": {
+    "sku": "nsls-Certificate-Cover",
+    "product_name": "NSLS Certificate Cover",
+    "size": ""
+  },
+  "License Plate": {
+    "sku": "License-Plate-Holder",
+    "product_name": "NSLS License Plate Holder",
+    "size": ""
+  },
+  "Cellphone Gr": {
+    "sku": "pop",
+    "product_name": "NSLS Phone Grip & Stand",
+    "size": ""
+  },
+  "Chapstick": {
+    "sku": "nsls-chap",
+    "product_name": "NSLS Chapstick",
+    "size": ""
+  },
+  "Lanyards": {
+    "sku": "nmp-l",
+    "product_name": "NSLS Lanyard",
+    "size": ""
+  },
+  "KEY CHAINS": {
+    "sku": "nsls-keychain",
+    "product_name": "NSLS Key Chain",
+    "size": ""
+  },
+  "Tablecloths": {
+    "sku": "nsls-table-cover-blue",
+    "product_name": "Official NSLS Table Cover",
+    "size": ""
+  },
+  "Pens": {
+    "sku": "nsls-prem-pen",
+    "product_name": "NSLS Executive Pen",
+    "size": ""
+  },
+  "pen-recycled-red": {
+    "sku": "pen-recycled-red",
+    "product_name": "NSLS Eco-Friendly Recyclable Pen - Red",
+    "size": ""
+  },
+  "CP77": {
+    "sku": "society-cap-white",
+    "product_name": "NSLS GREEK LETTER CAPS",
+    "size": "Stone"
+  },
+  "DT610": {
+    "sku": "society-cap-black",
+    "product_name": "NSLS GREEK LETTER CAPS",
+    "size": "Black"
+  },
+  "DT607": {
+    "sku": "greek-cap-black-white",
+    "product_name": "Greek Velcro Back Cap",
+    "size": ""
+  },
+  "DT607-Greek Letters": {
+    "sku": "greek-cap-black-white",
+    "product_name": "Greek Velcro Back Cap",
+    "size": ""
+  },
+  "DT607-NSLS Letters": {
+    "sku": "nsls-letters-cap-black-white",
+    "product_name": "NSLS Letters Cap",
+    "size": ""
+  },
+  "NE904-Crest Logo": {
+    "sku": "SAP-red-grey-pompom-circle",
+    "product_name": "NE904 Colorblock Cuffed Beanie - Crest Logo",
+    "size": ""
+  },
+  "NE904-NSLS Logo": {
+    "sku": "SAP-red-grey-pompom-nsls",
+    "product_name": "NE904 Colorblock Cuffed Beanie - NSLS Logo",
+    "size": ""
+  },
+  "banners": {
+    "sku": "nsls-banner-blue",
+    "product_name": "NSLS Banner",
+    "size": ""
+  },
+  "mens-red-executive-polo-03-l": {
+    "sku": "mens-red-executive-polo-03-l",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "L"
+  },
+  "mens-red-executive-polo-06-3xl": {
+    "sku": "mens-red-executive-polo-06-3xl",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "3XL"
+  },
+  "mens-red-executive-polo-02-m": {
+    "sku": "mens-red-executive-polo-02-m",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "M"
+  },
+  "mens-red-executive-polo-04-xl": {
+    "sku": "mens-red-executive-polo-04-xl",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "XL"
+  },
+  "mens-red-executive-polo-05-2xl": {
+    "sku": "mens-red-executive-polo-05-2xl",
+    "product_name": "NSLS Executive Board Polo - Men's - Red",
+    "size": "2XL"
+  },
+  "mens-white-executive-polo-01-s": {
+    "sku": "mens-white-executive-polo-01-s",
+    "product_name": "NSLS Executive Board Polo - White",
+    "size": "S"
+  },
+  "womens-white-executive-polo-02-m": {
+    "sku": "womens-white-executive-polo-02-m",
+    "product_name": "NSLS Executive Board Polo - Women's - White",
+    "size": "M"
+  },
+  "womens-white-executive-polo-03-l": {
+    "sku": "womens-white-executive-polo-03-l",
+    "product_name": "NSLS Executive Board Polo - Women's - White",
+    "size": "L"
+  },
+  "womens-polo-black-02-m": {
+    "sku": "womens-polo-black-02-m",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "M"
+  },
+  "womens-polo-black-03-l": {
+    "sku": "womens-polo-black-03-l",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "L"
+  },
+  "womens-polo-navy-01-s": {
+    "sku": "womens-polo-navy-01-s",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
+    "size": "S"
+  },
+  "womens-polo-navy-02-m": {
+    "sku": "womens-polo-navy-02-m",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
+    "size": "M"
+  },
+  "womens-polo-navy-03-l": {
+    "sku": "womens-polo-navy-03-l",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
+    "size": "L"
+  },
+  "womens-polo-navy-04-xl": {
+    "sku": "womens-polo-navy-04-xl",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
+    "size": "XL"
+  },
+  "mens-polo-black-05-2xl": {
+    "sku": "mens-polo-black-05-2xl",
+    "product_name": "NSLS Relaxed Fit OGIO Polo - Black",
+    "size": "2XL"
+  },
+  "Society-Weekender-Bag": {
+    "sku": "Society-Weekender-Bag",
+    "product_name": "Large Society Weekender Duffel",
+    "size": ""
+  },
+  "vintage-seal-sweatpants-01-s": {
+    "sku": "vintage-seal-sweatpants-01-s",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "S"
+  },
+  "vintage-seal-sweatpants-03-l": {
+    "sku": "vintage-seal-sweatpants-03-l",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "L"
+  },
+  "vintage-seal-sweatpants-04-xl": {
+    "sku": "vintage-seal-sweatpants-04-xl",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "XL"
+  },
+  "vintage-seal-sweatpants-05-2xl": {
+    "sku": "vintage-seal-sweatpants-05-2xl",
+    "product_name": "NSLS Vintage Seal Jogger Sweatpants",
+    "size": "2XL"
+  },
+  "sticker-i-heart-nsls": {
+    "sku": "sticker-i-heart-nsls",
+    "product_name": "Sticker - I Heart the NSLS",
+    "size": ""
+  },
+  "npm-p": {
+    "sku": "npm-p",
+    "product_name": "Sigma Alpha Pi Pennant",
+    "size": ""
+  },
+  "nmp-wb": {
+    "sku": "nmp-wb",
+    "product_name": "NSLS Water Bottle",
+    "size": ""
+  },
+  "nsls-Certificate-Cover": {
+    "sku": "nsls-Certificate-Cover",
+    "product_name": "NSLS Certificate Cover",
+    "size": ""
+  },
+  "License-Plate-Holder": {
+    "sku": "License-Plate-Holder",
+    "product_name": "NSLS License Plate Holder",
+    "size": ""
+  },
+  "pop": {
+    "sku": "pop",
+    "product_name": "NSLS Phone Grip & Stand",
+    "size": ""
+  },
+  "nsls-chap": {
+    "sku": "nsls-chap",
+    "product_name": "NSLS Chapstick",
+    "size": ""
+  },
+  "nmp-l": {
+    "sku": "nmp-l",
+    "product_name": "NSLS Lanyard",
+    "size": ""
+  },
+  "nsls-keychain": {
+    "sku": "nsls-keychain",
+    "product_name": "NSLS Key Chain",
+    "size": ""
+  },
+  "nsls-table-cover-blue": {
+    "sku": "nsls-table-cover-blue",
+    "product_name": "Official NSLS Table Cover",
+    "size": ""
+  },
+  "nsls-prem-pen": {
+    "sku": "nsls-prem-pen",
+    "product_name": "NSLS Executive Pen",
+    "size": ""
+  },
+  "society-cap-white": {
+    "sku": "society-cap-white",
+    "product_name": "NSLS GREEK LETTER CAPS",
+    "size": "Stone"
+  },
+  "society-cap-black": {
+    "sku": "society-cap-black",
+    "product_name": "NSLS GREEK LETTER CAPS",
+    "size": "Black"
+  },
+  "greek-cap-black-white": {
+    "sku": "greek-cap-black-white",
+    "product_name": "Greek Velcro Back Cap",
+    "size": ""
+  },
+  "NE904": {
+    "sku": "SAP-red-grey-pompom-nsls",
+    "product_name": "NE904 Colorblock Cuffed Beanie - NSLS Logo",
+    "size": "Red/grey"
+  },
+  "NE904-Red/Grey-Crest Logo": {
+    "sku": "SAP-red-grey-pompom-circle",
+    "product_name": "New Era\u00ae Pom Pom Cuffed Beanie",
+    "size": "Red/Grey"
+  },
+  "NE904-Red/grey-NSLS Logo": {
+    "sku": "SAP-red-grey-pompom-nsls",
+    "product_name": "New Era\u00ae Pom Pom Cuffed Beanie",
+    "size": "Red/grey"
+  },
+  "DT607-Black/White-NSLS Letters": {
+    "sku": "greek-cap-black-white",
+    "product_name": "Greek Velcro Back Cap",
+    "size": "Black/White"
+  },
+  "DT607-Black/White-Greek Letters": {
+    "sku": "greek-cap-black-white",
+    "product_name": "Greek Velcro Back Cap",
+    "size": "Black/White"
+  },
+  "DT610-Nickel-Greek Letters": {
+    "sku": "society-cap-black",
+    "product_name": "NSLS GREEK LETTER CAPS",
+    "size": "Nickel"
+  },
+  "DT610-Black-Greek Letters": {
+    "sku": "society-cap-black",
+    "product_name": "NSLS GREEK LETTER CAPS",
+    "size": "Black"
+  },
+  "Cords": {
+    "sku": "graduation-cords",
+    "product_name": "NSLS Graduation Cords",
+    "size": ""
+  },
+  "Stoles": {
+    "sku": "graduation-stole",
+    "product_name": "NSLS Graduation Stole",
+    "size": ""
+  },
+  "Medallion": {
+    "sku": "medallion",
+    "product_name": "Graduation Medallion",
+    "size": ""
+  },
+  "B118": {
+    "sku": "nsls-seal-tote-bag-navy",
+    "product_name": "NSLS Seal Tote Bag",
+    "size": ""
+  }
+}
