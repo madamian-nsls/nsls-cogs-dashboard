@@ -1,0 +1,8 @@
+{
+  "shopify_client_id": "",
+  "shopify_client_secret": "",
+  "shopify_store": "nsls-shop",
+  "google_sheet_url": "",
+  "approved_invoices": [],
+  "reorder_settings": {}
+}
