@@ -196,7 +196,10 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:20px 0}
         <div id="ref-area" style="display:none;margin-top:10px">
           <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Paste order reference to confirm size-specific matches. Format: <span style="font-family:monospace">Product Name XS 5 S 5 M 10 L 5</span></div>
           <textarea id="ref-textarea" placeholder="e.g. NSLS Contoured Fit OGIO Polo - Women's - Navy Blue XS 5 S 5 M 5 L 10 XL 5&#10;NSLS Contoured Fit OGIO Polo - Men's - Navy Blue XS 5 S 5 M 5 L 10 XL 5" style="width:100%;height:110px;resize:vertical;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:12px;font-family:monospace" oninput="onReferenceInput(this.value)"></textarea>
-          <div id="ref-parse-status" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
+            <div id="ref-parse-status" style="font-size:11px;color:var(--muted)"></div>
+            <button id="ref-apply-btn" class="btn btn-success btn-sm" onclick="applyReferenceToApproval()" style="display:none;font-size:11px;padding:3px 10px">&#10004; Match invoice using reference &rarr;</button>
+          </div>
         </div>
       </div>
     </div>
@@ -330,8 +333,10 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:20px 0}
           <th>Color</th>
           <th>Size</th>
           <th class="text-right">Qty</th>
+          <th class="text-right">On Hand</th>
+          <th class="text-right">Invoice Cost</th>
+          <th class="text-right">Weighted Avg</th>
           <th class="text-right">Prev COGS</th>
-          <th class="text-right">New COGS</th>
           <th class="text-right">Change $</th>
           <th>Status</th>
         </tr></thead>
@@ -654,9 +659,10 @@ function renderCOGSGroups(cogsGroups) {
             <th class="text-right">Base Cost</th>
             <th class="text-right">Fee/Unit</th>
             <th class="text-right">Final COGS</th>
+            <th class="text-right">Weighted Avg</th>
             <th>SKU</th>
           </tr></thead>
-          <tbody>${(g.items||[]).map(item => {
+          <tbody>${(g.items||[]).map((item, ii) => {
             const mapping = findSkuForItem(item);
             const sku = mapping ? (mapping.sku||mapping) : '';
             const skuBadge = sku
@@ -671,6 +677,7 @@ function renderCOGSGroups(cogsGroups) {
               <td class="text-right">$${(item.unit_cost||0).toFixed(4)}</td>
               <td class="text-right">$${(item.fee_per_unit||0).toFixed(4)}</td>
               <td class="text-right"><strong>$${(item.final_cogs||0).toFixed(2)}</strong></td>
+              <td class="text-right" id="wacell-${gi}-${ii}"><span class="text-muted" style="font-size:11px">…</span></td>
               <td>${skuBadge}</td>
             </tr>`;
           }).join('')}
@@ -683,6 +690,26 @@ function renderCOGSGroups(cogsGroups) {
   container.querySelectorAll('.editable').forEach(inp => {
     inp.addEventListener('change', markDirty);
   });
+  // Populate Weighted Avg column from Shopify (best-effort, non-blocking)
+  loadCOGSWeightedAvg(cogsGroups);
+}
+
+async function loadCOGSWeightedAvg(cogsGroups) {
+  if (!cogsGroups || !cogsGroups.length) return;
+  try {
+    const resp = await fetch('/cogs-preview', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ cogs_groups: cogsGroups })
+    });
+    const data = await resp.json();
+    if (!data.success || !data.items) return;
+    for (const [key, info] of Object.entries(data.items)) {
+      const cell = document.getElementById('wacell-' + key);
+      if (!cell) continue;
+      cell.innerHTML = `<strong>$${info.weighted_avg.toFixed(2)}</strong>`;
+      cell.title = `On hand: ${info.on_hand} | Prev COGS: $${info.prev_cogs.toFixed(2)}`;
+    }
+  } catch(e) { /* best-effort — don't break the COGS tab if Shopify is unreachable */ }
 }
 
 let dirty = false;
@@ -905,6 +932,15 @@ async function buildApprovalTable() {
     renderApprovalTable(approvalRows, data.invoice_number, data.invoice_date);
     document.getElementById('approval-pre-load').style.display = 'none';
     document.getElementById('approval-content').style.display = 'block';
+    // Show how many new mappings were learned from the reference
+    if (data.ref_learned > 0) {
+      const refStatus = document.getElementById('ref-parse-status');
+      if (refStatus) {
+        const prev = refStatus.textContent;
+        refStatus.textContent = prev + ` — ${data.ref_learned} new mapping${data.ref_learned !== 1 ? 's' : ''} saved to SKU map.`;
+        refStatus.style.color = 'var(--success)';
+      }
+    }
   } catch(e) {
     alert('Error: ' + e.message);
   } finally {
@@ -938,26 +974,34 @@ function renderApprovalTable(rows, invNum, invDate) {
 
   const tbody = document.getElementById('approval-tbody');
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted" style="padding:24px">No rows</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted" style="padding:24px">No rows</td></tr>`;
     return;
   }
 
   tbody.innerHTML = rows.map((row, i) => {
     let skuCell, prevCell, changeCell, statusCell, cbDisabled, cbChecked, rowStyle;
+    let onHandCell, invoiceCostCell, weightedAvgCell;
+
+    const invoiceCost = row.invoice_cost !== undefined ? row.invoice_cost : (row.new_cogs || 0);
+    invoiceCostCell = `$${invoiceCost.toFixed(2)}`;
 
     if (row.unmapped) {
       const refBadgeU = row.ref_matched ? ` <span class="badge" style="background:rgba(16,185,129,.12);color:var(--success);font-size:10px;padding:1px 5px" title="Matched via SKU Reference">&#10003; ref</span>` : '';
-      skuCell    = _pickerInput(i);
-      prevCell   = `<span class="text-muted">—</span>`;
-      changeCell = `—`;
-      statusCell = `<span class="badge badge-danger">Unmapped</span>` + refBadgeU;
+      skuCell         = _pickerInput(i);
+      prevCell        = `<span class="text-muted">—</span>`;
+      changeCell      = `—`;
+      onHandCell      = `<span class="text-muted">—</span>`;
+      weightedAvgCell = `<span class="text-muted">—</span>`;
+      statusCell      = `<span class="badge badge-danger">Unmapped</span>` + refBadgeU;
       cbDisabled = 'disabled'; cbChecked = ''; rowStyle = 'style="opacity:.7"';
 
     } else if (row.not_found) {
-      skuCell    = `<span class="mono">${esc(row.sku)}</span>`;
-      prevCell   = `<span class="text-muted">—</span>`;
-      changeCell = `—`;
-      statusCell = `<span class="badge badge-warn">Not in Shopify</span>`;
+      skuCell         = `<span class="mono">${esc(row.sku)}</span>`;
+      prevCell        = `<span class="text-muted">—</span>`;
+      changeCell      = `—`;
+      onHandCell      = `<span class="text-muted">—</span>`;
+      weightedAvgCell = `<span class="text-muted">—</span>`;
+      statusCell      = `<span class="badge badge-warn">Not in Shopify</span>`;
       cbDisabled = 'disabled'; cbChecked = ''; rowStyle = 'style="opacity:.55"';
 
     } else {
@@ -965,9 +1009,13 @@ function renderApprovalTable(rows, invNum, invDate) {
       const amt = row.change_amount || 0;
       const cls = amt > 0 ? 'change-pos' : (amt < 0 ? 'change-neg' : '');
       const refBadge = row.ref_matched ? ` <span class="badge" style="background:rgba(16,185,129,.12);color:var(--success);font-size:10px;padding:1px 5px" title="Matched via SKU Reference">&#10003; ref</span>` : '';
-      skuCell    = `<span class="badge badge-accent mono">${esc(row.sku)}</span>`;
-      prevCell   = row.prev_cogs !== null ? '$'+row.prev_cogs.toFixed(2) : '<span class="text-muted">—</span>';
-      changeCell = amt !== 0 ? `<span class="${cls}">${amt.toFixed(2)}</span>` : '—';
+      skuCell         = `<span class="badge badge-accent mono">${esc(row.sku)}</span>`;
+      prevCell        = row.prev_cogs !== null ? '$'+row.prev_cogs.toFixed(2) : '<span class="text-muted">—</span>';
+      changeCell      = amt !== 0 ? `<span class="${cls}">${amt.toFixed(2)}</span>` : '—';
+      onHandCell      = (row.on_hand !== undefined && row.on_hand !== null) ? row.on_hand : '—';
+      weightedAvgCell = row.weighted_avg !== undefined
+        ? `<strong>$${row.weighted_avg.toFixed(2)}</strong>`
+        : `<strong>${invoiceCostCell}</strong>`;
       statusCell = (isChanged ? `<span class="badge badge-warn">Changed</span>` : `<span class="badge badge-muted">No change</span>`) + refBadge;
       cbDisabled = isChanged ? '' : 'disabled';
       cbChecked  = isChanged ? 'checked' : '';
@@ -981,8 +1029,10 @@ function renderApprovalTable(rows, invNum, invDate) {
       <td>${esc(row.color||'—')}</td>
       <td>${esc(row.size||'—')}</td>
       <td class="text-right">${row.qty}</td>
+      <td class="text-right" id="on-hand-cell-${i}">${onHandCell}</td>
+      <td class="text-right" id="invoice-cost-cell-${i}">${invoiceCostCell}</td>
+      <td class="text-right" id="weighted-avg-cell-${i}">${weightedAvgCell}</td>
       <td class="text-right" id="prev-cogs-cell-${i}">${prevCell}</td>
-      <td class="text-right"><strong>$${(row.new_cogs||0).toFixed(2)}</strong></td>
       <td class="text-right" id="change-cell-${i}">${changeCell}</td>
       <td id="status-cell-${i}">${statusCell}</td>
     </tr>`;
@@ -1205,20 +1255,28 @@ async function selectSkuOption(evt, optIdx) {
       return;
     }
 
-    const newCogs   = approvalRows[idx].new_cogs || 0;
-    const prevCogs  = data.prev_cogs;
-    const changeAmt = Math.round((newCogs - prevCogs) * 100) / 100;
+    const row         = approvalRows[idx];
+    const prevCogs    = data.prev_cogs;
+    const onHand      = data.on_hand || 0;
+    const invoiceCost = row.invoice_cost !== undefined ? row.invoice_cost : (row.new_cogs || 0);
+    const qty         = row.qty || 0;
+    const weightedAvg = onHand <= 0
+      ? invoiceCost
+      : Math.round(((onHand * prevCogs) + (qty * invoiceCost)) / (onHand + qty) * 100) / 100;
+    const changeAmt   = Math.round((weightedAvg - prevCogs) * 100) / 100;
     // For a manually-resolved unmapped row, always treat as changed so the
     // checkbox is enabled and the user can include it in the approval push.
     const changed = true;
 
     // Persist selection into approvalRows so /approve sends correct data
-    const row = approvalRows[idx];
     approvalRows[idx] = {
       ...row,
       sku,
       inventory_item_id: data.inventory_item_id,
       prev_cogs: prevCogs,
+      on_hand: onHand,
+      invoice_cost: invoiceCost,
+      weighted_avg: weightedAvg,
       product_title: data.product_title || row.product_title,
       changed: true,
       change_amount: changeAmt,
@@ -1270,11 +1328,19 @@ async function selectSkuOption(evt, optIdx) {
        <button class="btn btn-ghost btn-sm" onclick="clearSkuPick(${idx})"
          style="padding:2px 6px;margin-left:4px;font-size:13px;line-height:1">×</button>`;
 
+    // Update On Hand cell
+    const onHandCellEl = document.getElementById('on-hand-cell-' + idx);
+    if (onHandCellEl) onHandCellEl.textContent = onHand;
+
+    // Update Weighted Avg cell
+    const weightedAvgCellEl = document.getElementById('weighted-avg-cell-' + idx);
+    if (weightedAvgCellEl) weightedAvgCellEl.innerHTML = `<strong>$${weightedAvg.toFixed(2)}</strong>`;
+
     // Update Prev COGS cell
     const prevCell = document.getElementById('prev-cogs-cell-' + idx);
     if (prevCell) prevCell.textContent = prevCogs !== null ? '$' + prevCogs.toFixed(2) : '—';
 
-    // Update Change $ cell
+    // Update Change $ cell (weighted_avg − prev_cogs)
     const changeCell = document.getElementById('change-cell-' + idx);
     if (changeCell) {
       const cls = changeAmt > 0 ? 'change-pos' : (changeAmt < 0 ? 'change-neg' : '');
@@ -1313,6 +1379,12 @@ function clearSkuPick(idx) {
   // Re-inject the picker input
   const skuCell = document.getElementById('sku-cell-' + idx);
   if (skuCell) skuCell.innerHTML = _pickerInput(idx);
+
+  const onHandCellEl = document.getElementById('on-hand-cell-' + idx);
+  if (onHandCellEl) onHandCellEl.innerHTML = `<span class="text-muted">—</span>`;
+
+  const weightedAvgCellEl = document.getElementById('weighted-avg-cell-' + idx);
+  if (weightedAvgCellEl) weightedAvgCellEl.innerHTML = `<span class="text-muted">—</span>`;
 
   const prevCell = document.getElementById('prev-cogs-cell-' + idx);
   if (prevCell) prevCell.innerHTML = `<span class="text-muted">—</span>`;
@@ -1522,10 +1594,26 @@ function parseReferenceText(text) {
 function onReferenceInput(value) {
   sessionStorage.setItem('sku_reference_text', value);
   referenceEntries = parseReferenceText(value);
-  const el = document.getElementById('ref-parse-status');
-  if (!value.trim()) { el.textContent = ''; return; }
+  const el  = document.getElementById('ref-parse-status');
+  const btn = document.getElementById('ref-apply-btn');
+  if (!value.trim()) {
+    el.textContent = '';
+    if (btn) btn.style.display = 'none';
+    return;
+  }
   const lines = value.trim().split('\n').filter(l => l.trim()).length;
-  el.textContent = `Parsed ${referenceEntries.length} size entries from ${lines} line${lines !== 1 ? 's' : ''}.`;
+  el.textContent = `Parsed ${referenceEntries.length} size entr${referenceEntries.length !== 1 ? 'ies' : 'y'} from ${lines} line${lines !== 1 ? 's' : ''}.`;
+  if (btn) btn.style.display = referenceEntries.length > 0 ? 'inline-flex' : 'none';
+}
+
+async function applyReferenceToApproval() {
+  if (!invoiceData) {
+    alert('Parse an invoice PDF first, then apply the reference.');
+    return;
+  }
+  if (!referenceEntries.length) return;
+  switchTab('approval');
+  await buildApprovalTable();
 }
 
 // ============================================================
@@ -1555,7 +1643,9 @@ function onReferenceInput(value) {
         btn.innerHTML = '&#9660; SKU Reference <span style="color:var(--muted)">(optional)</span>';
         const lines = savedRef.trim().split('\n').filter(l => l.trim()).length;
         const el = document.getElementById('ref-parse-status');
-        el.textContent = `Parsed ${referenceEntries.length} size entries from ${lines} line${lines !== 1 ? 's' : ''}.`;
+        el.textContent = `Parsed ${referenceEntries.length} size entr${referenceEntries.length !== 1 ? 'ies' : 'y'} from ${lines} line${lines !== 1 ? 's' : ''}.`;
+        const applyBtn = document.getElementById('ref-apply-btn');
+        if (applyBtn && referenceEntries.length > 0) applyBtn.style.display = 'inline-flex';
       }
     }
   }

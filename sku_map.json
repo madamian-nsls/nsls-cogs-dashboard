@@ -94,14 +94,46 @@
     "product_name": "NSLS Executive Board Polo - Women's - White",
     "size": "L"
   },
-  "LOG125-XS-Blacktop":  {"sku": "womens-polo-black-00-xs",  "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "XS"},
-  "LOG125-S-Blacktop":   {"sku": "womens-polo-black-01-s",   "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "S"},
-  "LOG125-M-Blacktop":   {"sku": "womens-polo-black-02-m",   "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "M"},
-  "LOG125-L-Blacktop":   {"sku": "womens-polo-black-03-l",   "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "L"},
-  "LOG125-XL-Blacktop":  {"sku": "womens-polo-black-04-xl",  "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "XL"},
-  "LOG125-2XL-Blacktop": {"sku": "womens-polo-black-05-2xl", "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "2XL"},
-  "LOG125-3XL-Blacktop": {"sku": "womens-polo-black-06-3xl", "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "3XL"},
-  "LOG125-4XL-Blacktop": {"sku": "womens-polo-black-07-4xl", "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black", "size": "4XL"},
+  "LOG125-XS-Blacktop": {
+    "sku": "womens-polo-black-00-xs",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "XS"
+  },
+  "LOG125-S-Blacktop": {
+    "sku": "womens-polo-black-01-s",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "S"
+  },
+  "LOG125-M-Blacktop": {
+    "sku": "womens-polo-black-02-m",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "M"
+  },
+  "LOG125-L-Blacktop": {
+    "sku": "womens-polo-black-03-l",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "L"
+  },
+  "LOG125-XL-Blacktop": {
+    "sku": "womens-polo-black-04-xl",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "XL"
+  },
+  "LOG125-2XL-Blacktop": {
+    "sku": "womens-polo-black-05-2xl",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "2XL"
+  },
+  "LOG125-3XL-Blacktop": {
+    "sku": "womens-polo-black-06-3xl",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "3XL"
+  },
+  "LOG125-4XL-Blacktop": {
+    "sku": "womens-polo-black-07-4xl",
+    "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Black",
+    "size": "4XL"
+  },
   "LOG101-S-Navy": {
     "sku": "womens-polo-navy-01-s",
     "product_name": "NSLS Contoured Fit OGIO Polo - Women's - Navy Blue",
@@ -476,5 +508,40 @@
     "sku": "nsls-seal-tote-bag-navy",
     "product_name": "NSLS Seal Tote Bag",
     "size": ""
+  },
+  "PC54-Athletic\nHeather-S": {
+    "sku": "leader-tee-s",
+    "product_name": "NSLS Leader Tee",
+    "size": "Athletic\nHeather"
+  },
+  "PC54-S": {
+    "sku": "leader-tee-s",
+    "product_name": "NSLS Leader Tee",
+    "size": "S"
+  },
+  "PC54-M": {
+    "sku": "leader-tee-m",
+    "product_name": "NSLS Leader Tee",
+    "size": "M"
+  },
+  "PC54-L": {
+    "sku": "leader-tee-l",
+    "product_name": "NSLS Leader Tee",
+    "size": "L"
+  },
+  "PC54-XL": {
+    "sku": "leader-tee-xl",
+    "product_name": "NSLS Leader Tee",
+    "size": "XL"
+  },
+  "PC54-2XL": {
+    "sku": "leader-tee-xxl",
+    "product_name": "NSLS Leader Tee",
+    "size": "2XL"
+  },
+  "PC54-3XL": {
+    "sku": "leader-tee-xxxl",
+    "product_name": "NSLS Leader Tee",
+    "size": "3XL"
   }
 }

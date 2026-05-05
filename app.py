@@ -200,7 +200,7 @@ def find_sku_for_item(item, sku_map):
 
 
 # ---------------------------------------------------------------------------
-# Reference-based SKU refinement
+# Reference-based SKU matching (Priority 1 in the 3-tier lookup)
 # ---------------------------------------------------------------------------
 
 _SIZE_NORM = {
@@ -208,117 +208,261 @@ _SIZE_NORM = {
     "XSM": "XS", "SML": "S", "MED": "M", "LRG": "L",
 }
 
-def _norm_size(s):
-    return _SIZE_NORM.get(s.upper(), s.upper())
+_COLOR_WORDS = {
+    "black", "navy", "white", "red", "blue", "grey", "gray", "green",
+    "yellow", "orange", "purple", "pink", "brown", "maroon", "royal",
+    "cardinal", "gold", "blacktop", "charcoal", "heather", "natural",
+    "forest", "cobalt", "silver", "coral", "teal", "cranberry",
+}
 
-def _gender_keywords(text):
+def _norm_size(s):
+    s = s.strip().upper() if s else ""
+    return _SIZE_NORM.get(s, s)
+
+def _gender_of(text):
     t = text.lower()
-    if any(w in t for w in ("women", "woman", "ladies", "lady", "girl", "female", "wmn", "w's")):
+    if any(w in t for w in ("women", "woman", "ladies", "lady", "girl", "female")):
         return "women"
-    if any(w in t for w in ("men", "man", "male", "guy", "boy", "m's")):
+    if re.search(r"\bmen\b|\bman\b|\bmale\b|\bboy\b", t):
         return "men"
     return None
 
-def _score_name_match(ref_name, candidate):
+def _load_csv_products():
     """
-    Simple keyword overlap score between a reference product name and a
-    candidate string (description or product_title).  Returns 0..N.
+    Load inventory_export_1.csv into a flat list of variant dicts.
+    Each entry: {title, sku, size, color, handle}
     """
-    ref_words  = [w for w in re.split(r"[\s\-/]+", ref_name.lower()) if len(w) >= 3]
-    cand_lower = candidate.lower()
-    return sum(1 for w in ref_words if w in cand_lower)
+    for filename in ("inventory_export_1.csv", "products_export_1.csv"):
+        path = os.path.join(BASE_DIR, filename)
+        if os.path.exists(path):
+            break
+    else:
+        return []
 
-def refine_with_reference(item, current_mapping, ref_entries, sku_map):
+    rows = []
+    try:
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                sku = (row.get("SKU") or row.get("Variant SKU") or "").strip()
+                if not sku:
+                    continue
+                title  = row.get("Title", "").strip()
+                handle = row.get("Handle", "").strip()
+                # Build option lookup: {option_name_lower: option_value}
+                opts = {}
+                for i in (1, 2, 3):
+                    name  = (row.get(f"Option{i} Name")  or "").strip().lower()
+                    value = (row.get(f"Option{i} Value") or "").strip()
+                    if name and value and value.lower() not in ("default title", ""):
+                        opts[name] = value
+                rows.append({
+                    "title":  title,
+                    "sku":    sku,
+                    "size":   opts.get("size",  ""),
+                    "color":  opts.get("color", ""),
+                    "handle": handle,
+                })
+    except Exception:
+        pass
+    return rows
+
+
+def _score_csv_title(ref_name, csv_title):
     """
-    Given a parsed invoice item and the current sku_map mapping (may be None),
-    try to find a better match using ref_entries (list of {product_name, size, qty}).
-
-    Returns (mapping, ref_matched: bool).
+    Count meaningful words (>=4 chars, not generic stop-words) from ref_name
+    that appear in csv_title.
     """
-    if not ref_entries:
-        return current_mapping, False
+    STOP = {"with", "from", "this", "that", "nsls", "logo"}
+    words = [
+        w for w in re.split(r"[\s\-/,.\'\"()\u00ae\u2122&]+", ref_name.lower())
+        if len(w) >= 4 and w not in STOP
+    ]
+    title_lc = csv_title.lower()
+    return sum(1 for w in words if w in title_lc)
 
-    size      = _norm_size((item.get("size") or "").strip())
-    item_code = (item.get("item_code") or "").strip()
-    desc      = (item.get("description") or "").strip()
 
-    # Find reference entries that match by size
-    size_matches = [e for e in ref_entries if _norm_size(e["size"]) == size] if size else ref_entries
+def _find_sku_in_csv(ref_product_name, target_size, csv_rows):
+    """
+    Search csv_rows for the variant whose title best matches ref_product_name
+    and whose size option equals target_size.
 
-    if not size_matches:
-        return current_mapping, False
+    Returns {sku, title, color} or None.
+    Minimum score of 2 required to avoid false matches.
+    """
+    target_size_up = _norm_size(target_size)
+    ref_gender = _gender_of(ref_product_name)
+    ref_lc = ref_product_name.lower()
 
-    # Score each size-matched reference entry against the current mapping's product_name
-    # and the item description, to pick the best reference line.
-    def best_ref_candidate():
-        scored = []
-        for entry in size_matches:
-            ref_name = entry.get("product_name", "")
-            # Score against current mapping product_name if available
-            cand1 = (current_mapping.get("product_name") or "") if isinstance(current_mapping, dict) else ""
-            cand2 = desc
-            score = _score_name_match(ref_name, cand1 + " " + cand2)
-            scored.append((score, entry))
-        scored.sort(key=lambda x: -x[0])
-        if scored and scored[0][0] > 0:
-            return scored[0][1]
-        # If no keyword overlap, only use reference if there's exactly one entry for this size
-        if len(size_matches) == 1:
-            return size_matches[0]
+    ref_color = next(
+        (c for c in _COLOR_WORDS if re.search(r"\b" + c + r"\b", ref_lc)), None
+    )
+
+    scored = []
+    for row in csv_rows:
+        if not row["sku"]:
+            continue
+        if target_size_up and _norm_size(row["size"]) != target_size_up:
+            continue
+        row_gender = _gender_of(row["title"])
+        if ref_gender and row_gender and ref_gender != row_gender:
+            continue
+
+        score = _score_csv_title(ref_product_name, row["title"])
+        if score <= 0:
+            continue
+        if ref_gender and row_gender == ref_gender:
+            score += 2
+        if ref_color and row["color"] and ref_color in row["color"].lower():
+            score += 2
+
+        scored.append((score, row))
+
+    if not scored:
+        return None
+    scored.sort(key=lambda x: -x[0])
+    best_score, best_row = scored[0]
+    if best_score < 2:
+        return None
+    return {"sku": best_row["sku"], "title": best_row["title"], "color": best_row["color"]}
+
+
+# Words that appear in virtually every reference entry or are too generic to
+# discriminate between products.
+_REF_STOP = {
+    '', 'the', 'and', 'for', 'a', 'an', 'of', 'to', 'in', 'by', 'at',
+    'is', 'it', 'its', 'or', 's', 'nsls',
+}
+
+
+def _desc_words(text):
+    """Split text into a set of normalised words, filtering stop words and
+    short tokens that carry no discriminating signal."""
+    return {
+        w for w in re.split(r"[\s\-/,.()'\"®™&]+", text.lower())
+        if len(w) >= 3 and w not in _REF_STOP
+    }
+
+
+def _word_overlap_score(desc, ref_name):
+    """
+    Word overlap ratio between an invoice description and a reference product name.
+
+    Score = |common words| / max(|desc_words|, |ref_words|)
+
+    A gender conflict (e.g. description says "Ladies" but ref says "Men's")
+    forces the score to 0.  A confirmed gender match adds +0.15 to break ties.
+
+    Returns 0.0 .. ~1.15.
+    """
+    words_d = _desc_words(desc)
+    words_r = _desc_words(ref_name)
+    if not words_d or not words_r:
+        return 0.0
+
+    common = words_d & words_r
+    score = len(common) / max(len(words_d), len(words_r)) if max(len(words_d), len(words_r)) else 0.0
+    if score == 0.0:
+        return 0.0
+
+    # Gender awareness — _gender_of understands synonyms (ladies → women, etc.)
+    desc_gender = _gender_of(desc)
+    ref_gender  = _gender_of(ref_name)
+    if desc_gender and ref_gender:
+        if desc_gender != ref_gender:
+            return 0.0    # hard conflict — wrong product
+        score += 0.15     # confirmed gender match bonus
+
+    return score
+
+
+def match_by_reference(item, ref_entries, csv_rows):
+    """
+    Priority-1 matching: description word overlap → size filter → CSV lookup.
+
+    Algorithm:
+      1. Collect unique product names from the reference table.
+      2. Score each name against the invoice item description using word overlap
+         ratio (see _word_overlap_score).  Require best score >= 0.30.
+      3. Within the winning product name, require a reference entry whose size
+         matches the invoice item's size.
+      4. Search inventory_export_1.csv for the variant with that product title
+         and size option value.
+      6. Return {sku, product_name, sku_map_key}.
+
+    Logs every match attempt to the Flask console for debugging.
+    """
+    if not ref_entries or not csv_rows:
         return None
 
-    best = best_ref_candidate()
-    if best is None:
-        return current_mapping, False
+    item_size  = _norm_size((item.get("size")         or "").strip())
+    item_code  = (item.get("item_code")   or "").strip()
+    item_desc  = (item.get("description") or "").strip()
+    item_color = (item.get("color")       or "").strip()
 
-    ref_name   = best.get("product_name", "")
-    ref_gender = _gender_keywords(ref_name)
+    match_text = item_desc or item_code
+    if not match_text:
+        return None
 
-    # If we already have a mapping and gender doesn't conflict, just confirm it
-    if current_mapping:
-        if ref_gender is None:
-            return current_mapping, True
-        mapping_text = (current_mapping.get("product_name") or "") if isinstance(current_mapping, dict) else ""
-        mapping_gender = _gender_keywords(mapping_text)
-        if mapping_gender is None or mapping_gender == ref_gender:
-            return current_mapping, True
-        # Gender conflict — try to find a better matching sku_map entry
-        # fall through to search below
-
-    # Try to find a sku_map entry that matches both size and gender from reference
-    # First look for composite keys for the item code
-    parts = item_code.split("-")
-    base_codes = [item_code] + ["-".join(parts[:i]) for i in range(len(parts)-1, 0, -1)]
-
-    best_alt = None
-    best_alt_score = 0
-    for key, val in sku_map.items():
-        if not isinstance(val, dict):
+    # --- Step 2: score every unique reference product name ----------------
+    seen: dict = {}
+    for entry in ref_entries:
+        ref_name = (entry.get("product_name") or "").strip()
+        if not ref_name or ref_name in seen:
             continue
-        pn = (val.get("product_name") or "").lower()
-        if not pn:
-            continue
-        # Must match item base code prefix
-        key_upper = key.upper()
-        if not any(key_upper.startswith(bc.upper()) for bc in base_codes if bc):
-            continue
-        pn_gender = _gender_keywords(pn)
-        # Skip if gender conflicts with reference
-        if ref_gender and pn_gender and pn_gender != ref_gender:
-            continue
-        # Score by keyword overlap with reference name
-        score = _score_name_match(ref_name, pn)
-        if ref_gender and pn_gender == ref_gender:
-            score += 3  # bonus for gender match
-        if score > best_alt_score:
-            best_alt_score = score
-            best_alt = val
+        seen[ref_name] = _word_overlap_score(match_text, ref_name)
 
-    if best_alt and best_alt_score > 0:
-        return best_alt, True
+    if not seen:
+        return None
 
-    return current_mapping, bool(current_mapping)
+    ranked = sorted(seen.items(), key=lambda x: -x[1])
+    best_name, best_score = ranked[0]
 
+    print(f"[NSLS REF] {item_code!r} | desc={item_desc!r} | size={item_size!r}")
+    for name, sc in ranked[:3]:
+        marker = " <- BEST" if name == best_name else ""
+        print(f"           score={sc:.2f}  ref={name!r}{marker}")
+
+    # --- Step 3: threshold check ------------------------------------------
+    if best_score < 0.30:
+        print(f"[NSLS REF]   best score {best_score:.2f} < 0.30 -> no reference match")
+        return None
+
+    # --- Step 4: require a size-matched entry for the winning product ------
+    if item_size:
+        size_entries = [
+            e for e in ref_entries
+            if (e.get("product_name") or "").strip() == best_name
+            and _norm_size(e.get("size", "")) == item_size
+        ]
+        if not size_entries:
+            print(f"[NSLS REF]   no ref entry for size {item_size!r} "
+                  f"under {best_name!r} -> no reference match")
+            return None
+
+    # --- Step 5: CSV lookup -----------------------------------------------
+    csv_match = _find_sku_in_csv(best_name, item_size, csv_rows)
+    if not csv_match:
+        print(f"[NSLS REF]   CSV lookup failed: {best_name!r} size={item_size!r}")
+        return None
+
+    print(f"[NSLS REF]   -> SKU={csv_match['sku']!r}  title={csv_match['title']!r}")
+
+    # --- Step 6: build sku_map key ----------------------------------------
+    # Use invoice's color field for the key when available — it's the value
+    # find_sku_for_item will see in future invoices (Phase 2: item_code-size-color).
+    color_for_key = item_color or csv_match.get("color", "")
+    if item_size and color_for_key:
+        sku_map_key = f"{item_code}-{item_size}-{color_for_key}"
+    elif item_size:
+        sku_map_key = f"{item_code}-{item_size}"
+    else:
+        sku_map_key = item_code
+
+    return {
+        "sku":          csv_match["sku"],
+        "product_name": csv_match["title"],
+        "sku_map_key":  sku_map_key,
+    }
 
 # ---------------------------------------------------------------------------
 # PDF parsing
@@ -744,9 +888,68 @@ def get_inventory_levels(store, client_id, client_secret, iids):
     return levels
 
 
+def get_all_inventory_costs(store, client_id, client_secret, iids):
+    """Batch-fetch cost for a list of inventory_item_ids.  Returns {iid: cost_float}."""
+    if not iids:
+        return {}
+    costs = {}
+    for i in range(0, len(iids), 100):
+        chunk = iids[i:i + 100]
+        ids_str = ",".join(str(x) for x in chunk)
+        try:
+            r = _shopify_request(
+                "get",
+                f"https://{store}/admin/api/2026-01/inventory_items.json"
+                f"?ids={ids_str}&limit=250",
+                store, client_id, client_secret, timeout=30,
+            )
+            if r.status_code == 200:
+                for inv_item in r.json().get("inventory_items", []):
+                    cost = inv_item.get("cost")
+                    if cost is not None:
+                        costs[inv_item["id"]] = round(float(cost), 2)
+        except Exception:
+            pass
+    return costs
+
+
 # ---------------------------------------------------------------------------
 # Inventory CSV helpers
 # ---------------------------------------------------------------------------
+
+def load_inventory_on_hand():
+    """
+    Read inventory_export_1.csv and return {sku: on_hand_qty} for
+    Location = 'Underground Sports Shop'.  'not stocked' rows → 0.
+    """
+    path = os.path.join(BASE_DIR, "inventory_export_1.csv")
+    if not os.path.exists(path):
+        return {}
+    result = {}
+    try:
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            for row in csv.DictReader(f):
+                if (row.get("Location") or "").strip() != "Underground Sports Shop":
+                    continue
+                sku = (row.get("SKU") or "").strip()
+                if not sku:
+                    continue
+                raw = (row.get("On hand (current)") or "").strip()
+                try:
+                    qty = int(float(raw)) if raw and raw.lower() not in ("not stocked", "") else 0
+                except (ValueError, TypeError):
+                    qty = 0
+                result[sku] = qty
+    except Exception:
+        pass
+    return result
+
+
+def calc_weighted_avg(prev_cogs, on_hand, invoice_cost, qty):
+    """Return weighted-average COGS, rounded to 2 dp.  Falls back to invoice_cost when on_hand <= 0."""
+    if on_hand <= 0:
+        return round(float(invoice_cost), 2)
+    return round(((on_hand * float(prev_cogs)) + (qty * float(invoice_cost))) / (on_hand + qty), 2)
 
 
 # ---------------------------------------------------------------------------
@@ -798,6 +1001,61 @@ def recalculate():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/cogs-preview", methods=["POST"])
+def cogs_preview():
+    """
+    Batch-compute weighted-avg COGS for the COGS Calculator tab.
+    Returns {gi}-{ii} keyed items with prev_cogs, on_hand, weighted_avg.
+    """
+    data = request.json or {}
+    cogs_groups = data.get("cogs_groups", [])
+
+    sku_map = load_sku_map()
+    try:
+        store, client_id, client_secret = get_shopify_creds()
+        products = get_all_shopify_products(store, client_id, client_secret, use_cache=True)
+    except Exception:
+        return jsonify({"success": False, "items": {}})
+
+    on_hand_map = load_inventory_on_hand()
+
+    # Resolve SKU and inventory_item_id for every line item
+    pending = {}   # "{gi}-{ii}" → {item, sku, iid}
+    for gi, group in enumerate(cogs_groups):
+        for ii, item in enumerate(group.get("items", [])):
+            mapping = find_sku_for_item(item, sku_map)
+            sku = (mapping.get("sku", "") if isinstance(mapping, dict) else str(mapping or ""))
+            if not sku:
+                continue
+            variant = find_variant_by_sku(products, sku)
+            if not variant:
+                continue
+            pending[f"{gi}-{ii}"] = {"item": item, "sku": sku, "iid": variant["inventory_item_id"]}
+
+    # Batch-fetch all costs in one round-trip per 100 items
+    iids = [v["iid"] for v in pending.values()]
+    costs = get_all_inventory_costs(store, client_id, client_secret, iids)
+
+    result = {}
+    for key, entry in pending.items():
+        sku          = entry["sku"]
+        iid          = entry["iid"]
+        item         = entry["item"]
+        prev_cogs    = costs.get(iid, 0.0)
+        on_hand      = on_hand_map.get(sku, 0)
+        invoice_cost = round(float(item.get("final_cogs", 0)), 2)
+        qty          = item.get("qty", 0)
+        weighted_avg = calc_weighted_avg(prev_cogs, on_hand, invoice_cost, qty)
+        result[key]  = {
+            "sku":          sku,
+            "prev_cogs":    prev_cogs,
+            "on_hand":      on_hand,
+            "weighted_avg": weighted_avg,
+        }
+
+    return jsonify({"success": True, "items": result})
+
+
 @app.route("/sku-map", methods=["GET"])
 def get_sku_map():
     return jsonify(load_sku_map())
@@ -832,10 +1090,10 @@ def delete_sku_mapping():
 @app.route("/approval-data", methods=["POST"])
 def approval_data():
     data = request.json or {}
-    cogs_groups = data.get("cogs_groups", [])
+    cogs_groups    = data.get("cogs_groups", [])
     invoice_number = data.get("invoice_number", "")
-    invoice_date = data.get("invoice_date", "")
-    ref_entries = data.get("reference", [])  # parsed SKU Reference entries from UI
+    invoice_date   = data.get("invoice_date", "")
+    ref_entries    = data.get("reference", [])  # parsed SKU Reference entries from UI
 
     sku_map = load_sku_map()
     try:
@@ -848,26 +1106,63 @@ def approval_data():
     except Exception as e:
         return jsonify({"error": f"Shopify API error: {e}"}), 500
 
+    # Load CSV once for reference matching and on-hand quantities
+    csv_rows = _load_csv_products() if ref_entries else []
+    on_hand_map = load_inventory_on_hand()
+
+    # Collect new sku_map entries learned from reference matches; batch-save at end
+    new_sku_map_entries = {}
+
     rows = []
     for group in cogs_groups:
         for item in group.get("items", []):
             item_code = item.get("item_code", "")
-            raw_mapping = find_sku_for_item(item, sku_map)
-            mapping, ref_matched = refine_with_reference(item, raw_mapping, ref_entries, sku_map)
-            sku = (mapping.get("sku", "") if isinstance(mapping, dict) else str(mapping or ""))
-            product_name_override = (mapping.get("product_name", "") if isinstance(mapping, dict) else "")
+            invoice_cost = round(float(item.get("final_cogs", 0)), 2)
 
             base = {
-                "item_code": item_code,
-                "description": item.get("description", ""),
-                "size": item.get("size", ""),
-                "color": item.get("color", ""),
-                "qty": item.get("qty", 0),
-                "new_cogs": round(float(item.get("final_cogs", 0)), 2),
+                "item_code":    item_code,
+                "description":  item.get("description", ""),
+                "size":         item.get("size", ""),
+                "color":        item.get("color", ""),
+                "qty":          item.get("qty", 0),
+                "new_cogs":     invoice_cost,   # kept for backwards compat
+                "invoice_cost": invoice_cost,
             }
 
+            # ---------------------------------------------------------------
+            # Priority 1 — Reference match (size+qty → CSV lookup)
+            # ---------------------------------------------------------------
+            ref_result  = None
+            ref_matched = False
+            if ref_entries and csv_rows:
+                ref_result = match_by_reference(item, ref_entries, csv_rows)
+                if ref_result:
+                    ref_matched = True
+                    # Queue auto-save so future invoices skip manual mapping
+                    map_key = ref_result["sku_map_key"]
+                    new_sku_map_entries[map_key] = {
+                        "sku":          ref_result["sku"],
+                        "product_name": ref_result["product_name"],
+                        "size":         (item.get("size") or "").strip(),
+                    }
+
+            # ---------------------------------------------------------------
+            # Priority 2 — SKU map lookup
+            # ---------------------------------------------------------------
+            if ref_result:
+                sku                  = ref_result["sku"]
+                product_name_override = ref_result["product_name"]
+            else:
+                mapping              = find_sku_for_item(item, sku_map)
+                sku                  = (mapping.get("sku", "") if isinstance(mapping, dict) else str(mapping or ""))
+                product_name_override = (mapping.get("product_name", "") if isinstance(mapping, dict) else "")
+
+            # ---------------------------------------------------------------
+            # Priority 3 — Unmapped (manual search dropdown)
+            # ---------------------------------------------------------------
             if not sku:
-                rows.append({**base, "sku": "", "prev_cogs": None,
+                rows.append({**base,
+                              "sku": "", "prev_cogs": None,
                               "inventory_item_id": None, "changed": False,
                               "product_title": product_name_override or item.get("description", ""),
                               "unmapped": True, "ref_matched": ref_matched})
@@ -875,7 +1170,8 @@ def approval_data():
 
             variant = find_variant_by_sku(products, sku)
             if not variant:
-                rows.append({**base, "sku": sku, "prev_cogs": None,
+                rows.append({**base,
+                              "sku": sku, "prev_cogs": None,
                               "inventory_item_id": None, "changed": False,
                               "product_title": product_name_override or item.get("description", ""),
                               "not_found": True, "ref_matched": ref_matched})
@@ -887,23 +1183,34 @@ def approval_data():
             except Exception:
                 prev_cogs = 0.0
 
-            new_cogs = base["new_cogs"]
-            changed = abs(new_cogs - prev_cogs) > 0.001
+            on_hand      = on_hand_map.get(sku, 0)
+            weighted_avg = calc_weighted_avg(prev_cogs, on_hand, invoice_cost, base["qty"])
+            changed      = abs(weighted_avg - prev_cogs) > 0.001
 
             rows.append({
                 **base,
-                "sku": sku,
-                "prev_cogs": prev_cogs,
+                "sku":               sku,
+                "prev_cogs":         prev_cogs,
                 "inventory_item_id": iid,
-                "changed": changed,
-                "change_amount": round(new_cogs - prev_cogs, 2),
-                "product_title": product_name_override or variant.get("product_title", ""),
-                "ref_matched": ref_matched,
+                "on_hand":           on_hand,
+                "weighted_avg":      weighted_avg,
+                "changed":           changed,
+                "change_amount":     round(weighted_avg - prev_cogs, 2),
+                "product_title":     product_name_override or variant.get("product_title", ""),
+                "ref_matched":       ref_matched,
             })
+
+    # Persist any new mappings learned from the reference table
+    if new_sku_map_entries:
+        sku_map.update(new_sku_map_entries)
+        save_sku_map(sku_map)
+        print(f"[NSLS] Auto-saved {len(new_sku_map_entries)} new sku_map entries from reference: "
+              f"{list(new_sku_map_entries.keys())}")
 
     return jsonify({"success": True, "rows": rows,
                     "invoice_number": invoice_number,
-                    "invoice_date": invoice_date})
+                    "invoice_date": invoice_date,
+                    "ref_learned": len(new_sku_map_entries)})
 
 
 @app.route("/approve", methods=["POST"])
@@ -929,10 +1236,11 @@ def approve():
     approved_rows = [r for r in rows
                      if r.get("sku") in approved_skus and r.get("changed") and r.get("inventory_item_id")]
 
-    # 1. Update Shopify
+    # 1. Update Shopify — push weighted_avg (falls back to new_cogs for legacy rows)
     for row in approved_rows:
         try:
-            update_inventory_item_cost(store, client_id, client_secret, row["inventory_item_id"], row["new_cogs"])
+            cost_to_push = float(row.get("weighted_avg") or row.get("new_cogs") or 0)
+            update_inventory_item_cost(store, client_id, client_secret, row["inventory_item_id"], cost_to_push)
             results["shopify"].append({"sku": row["sku"], "status": "updated"})
         except Exception as e:
             results["errors"].append(f"Shopify [{row['sku']}]: {e}")
@@ -941,9 +1249,10 @@ def approve():
     if sheet_url and approved_rows:
         sheet_rows = []
         for row in approved_rows:
-            prev  = round(float(row.get("prev_cogs",  0) or 0), 2)
-            new_c = round(float(row.get("new_cogs",   0) or 0), 2)
-            change = round(new_c - prev, 2)
+            prev         = round(float(row.get("prev_cogs",    0) or 0), 2)
+            invoice_cost = round(float(row.get("invoice_cost") or row.get("new_cogs", 0) or 0), 2)
+            weighted_avg = round(float(row.get("weighted_avg") or row.get("new_cogs", 0) or 0), 2)
+            change       = round(weighted_avg - prev, 2)
             product_name = row.get("product_title") or row.get("description", "")
             if is_duplicate:
                 product_name = f"DUPLICATE - Invoice previously approved | {product_name}"
@@ -955,7 +1264,8 @@ def approve():
                 "Quote Date":      invoice_date,
                 "Quoted Quantity": str(row.get("qty", 0)),
                 "Previous COGS":   f"${prev:.2f}",
-                "New COGS":        f"${new_c:.2f}",
+                "Invoice Cost":    f"${invoice_cost:.2f}",
+                "Weighted Avg":    f"${weighted_avg:.2f}",
                 "Change $":        f"${change:.2f}",
             })
         # Payload is a bare JSON array — matches what the Apps Script doPost expects.
@@ -1162,10 +1472,12 @@ def resolve_sku():
             return jsonify({"found": False})
         iid = variant["inventory_item_id"]
         prev_cogs = round(get_inventory_item_cost(store, client_id, client_secret, iid), 2)
+        on_hand_map = load_inventory_on_hand()
         return jsonify({
             "found": True,
             "inventory_item_id": iid,
             "prev_cogs": prev_cogs,
+            "on_hand": on_hand_map.get(sku, 0),
             "product_title": variant.get("product_title", ""),
         })
     except Exception as e:
