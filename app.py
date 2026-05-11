@@ -25,6 +25,99 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 # Config / SKU-map helpers
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# JSONBin.io — remote persistence for sku_map and app data (approved invoices
+# + reorder settings).  Used automatically on Render where the local
+# filesystem is ephemeral.  Falls back to local files when env vars are unset
+# so local dev is completely unaffected.
+# ---------------------------------------------------------------------------
+_JSONBIN_BASE = "https://api.jsonbin.io/v3"
+
+
+def _jb_headers():
+    return {"X-Master-Key": os.environ.get("JSONBIN_API_KEY", ""),
+            "Content-Type": "application/json"}
+
+
+def _jb_read(bin_id):
+    try:
+        r = requests.get(f"{_JSONBIN_BASE}/b/{bin_id}/latest",
+                         headers=_jb_headers(), timeout=10)
+        if r.status_code == 200:
+            return r.json().get("record")
+        print(f"[NSLS] JSONBin read {bin_id}: HTTP {r.status_code} — {r.text[:200]}")
+    except Exception as exc:
+        print(f"[NSLS] JSONBin read {bin_id}: {exc}")
+    return None
+
+
+def _jb_write(bin_id, data):
+    try:
+        r = requests.put(f"{_JSONBIN_BASE}/b/{bin_id}", json=data,
+                         headers=_jb_headers(), timeout=10)
+        if r.status_code == 200:
+            return True
+        print(f"[NSLS] JSONBin write {bin_id}: HTTP {r.status_code} — {r.text[:200]}")
+    except Exception as exc:
+        print(f"[NSLS] JSONBin write {bin_id}: {exc}")
+    return False
+
+
+def _jb_create(name, initial_data):
+    try:
+        r = requests.post(f"{_JSONBIN_BASE}/b", json=initial_data,
+                          headers={**_jb_headers(),
+                                   "X-Bin-Name": name,
+                                   "X-Bin-Private": "true"},
+                          timeout=10)
+        if r.status_code == 200:
+            return r.json()["metadata"]["id"]
+        print(f"[NSLS] JSONBin create {name!r}: HTTP {r.status_code} — {r.text[:200]}")
+    except Exception as exc:
+        print(f"[NSLS] JSONBin create {name!r}: {exc}")
+    return None
+
+
+def _init_jsonbin():
+    """
+    Called once on startup.  If JSONBIN_API_KEY is present but the bin IDs
+    are not yet set, create the bins, seed them with whatever is in the local
+    files, and print the new IDs so the operator can add them as env vars.
+    """
+    if not os.environ.get("JSONBIN_API_KEY"):
+        return
+
+    if not os.environ.get("JSONBIN_SKU_MAP_BIN_ID"):
+        seed = {}
+        if os.path.exists(SKU_MAP_PATH):
+            with open(SKU_MAP_PATH) as f:
+                seed = json.load(f)
+        bin_id = _jb_create("nsls-sku-map", seed)
+        if bin_id:
+            print("[NSLS] ══════════════════════════════════════════════════════")
+            print("[NSLS]  New bin created — add this Render env var:")
+            print(f"[NSLS]  JSONBIN_SKU_MAP_BIN_ID = {bin_id}")
+            print("[NSLS] ══════════════════════════════════════════════════════")
+
+    if not os.environ.get("JSONBIN_APP_DATA_BIN_ID"):
+        seed: dict = {"approved_invoices": {}, "reorder_settings": {}}
+        if os.path.exists(CONFIG_PATH):
+            with open(CONFIG_PATH) as f:
+                stored = json.load(f)
+            seed["approved_invoices"] = stored.get("approved_invoices", {})
+            seed["reorder_settings"]  = stored.get("reorder_settings", {})
+        bin_id = _jb_create("nsls-app-data", seed)
+        if bin_id:
+            print("[NSLS] ══════════════════════════════════════════════════════")
+            print("[NSLS]  New bin created — add this Render env var:")
+            print(f"[NSLS]  JSONBIN_APP_DATA_BIN_ID = {bin_id}")
+            print("[NSLS] ══════════════════════════════════════════════════════")
+
+
+# ---------------------------------------------------------------------------
+# Config / SKU-map helpers
+# ---------------------------------------------------------------------------
+
 def load_config():
     cfg = {"shopify_store": "", "shopify_client_id": "", "shopify_client_secret": "",
            "google_sheet_url": "", "reorder_settings": {}}
@@ -42,15 +135,36 @@ def load_config():
         val = os.environ.get(env_var, "").strip()
         if val:
             cfg[cfg_key] = val
+    # Overlay approved_invoices + reorder_settings from JSONBin when available
+    bin_id = os.environ.get("JSONBIN_APP_DATA_BIN_ID", "")
+    if os.environ.get("JSONBIN_API_KEY") and bin_id:
+        app_data = _jb_read(bin_id)
+        if app_data is not None:
+            if "approved_invoices" in app_data:
+                cfg["approved_invoices"] = app_data["approved_invoices"]
+            if "reorder_settings" in app_data:
+                cfg["reorder_settings"] = app_data["reorder_settings"]
     return cfg
 
 
 def save_config(cfg):
+    # Persist approved_invoices + reorder_settings to JSONBin on Render
+    bin_id = os.environ.get("JSONBIN_APP_DATA_BIN_ID", "")
+    if os.environ.get("JSONBIN_API_KEY") and bin_id:
+        _jb_write(bin_id, {
+            "approved_invoices": cfg.get("approved_invoices", {}),
+            "reorder_settings":  cfg.get("reorder_settings", {}),
+        })
     with open(CONFIG_PATH, "w") as f:
         json.dump(cfg, f, indent=2)
 
 
 def load_sku_map():
+    bin_id = os.environ.get("JSONBIN_SKU_MAP_BIN_ID", "")
+    if os.environ.get("JSONBIN_API_KEY") and bin_id:
+        data = _jb_read(bin_id)
+        if data is not None:
+            return data
     if os.path.exists(SKU_MAP_PATH):
         with open(SKU_MAP_PATH) as f:
             return json.load(f)
@@ -58,6 +172,9 @@ def load_sku_map():
 
 
 def save_sku_map(m):
+    bin_id = os.environ.get("JSONBIN_SKU_MAP_BIN_ID", "")
+    if os.environ.get("JSONBIN_API_KEY") and bin_id:
+        _jb_write(bin_id, m)
     with open(SKU_MAP_PATH, "w") as f:
         json.dump(m, f, indent=2)
 
@@ -1696,6 +1813,8 @@ def resolve_sku():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+_init_jsonbin()
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
