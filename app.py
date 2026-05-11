@@ -26,10 +26,23 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 # ---------------------------------------------------------------------------
 
 def load_config():
+    cfg = {"shopify_store": "", "shopify_client_id": "", "shopify_client_secret": "",
+           "google_sheet_url": "", "reorder_settings": {}}
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH) as f:
-            return json.load(f)
-    return {"shopify_store": "", "shopify_client_id": "", "shopify_client_secret": "", "google_sheet_url": "", "reorder_settings": {}}
+            cfg.update(json.load(f))
+    # Environment variables override the file so the app works on Render
+    # without a committed config.json.
+    for env_var, cfg_key in (
+        ("SHOPIFY_STORE",         "shopify_store"),
+        ("SHOPIFY_CLIENT_ID",     "shopify_client_id"),
+        ("SHOPIFY_CLIENT_SECRET", "shopify_client_secret"),
+        ("GOOGLE_SHEET_URL",      "google_sheet_url"),
+    ):
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            cfg[cfg_key] = val
+    return cfg
 
 
 def save_config(cfg):
@@ -173,6 +186,14 @@ def find_sku_for_item(item, sku_map):
         for base in base_codes:
             if base and base in sku_map:
                 return sku_map[base]
+
+        # Phase 4b: color-as-size fallback (USS invoices put actual size in the color column)
+        _SIZE_LIKE = {"XS","S","M","L","XL","XXL","2XL","XXXL","3XL","4XL","5XL","SM","MD","LG","XSM","SML","MED","LRG"}
+        if color and color.strip().upper() in _SIZE_LIKE:
+            alt_size = _norm_size(color.strip())
+            for base in base_codes:
+                k = f"{base}-{alt_size}"
+                if k in sku_map: return sku_map[k]
 
     # ---- Key-substring check: e.g. item_code "License Plate Holder" → key "License Plate" ----
     if item_code:
@@ -765,8 +786,10 @@ def calculate_cogs(groups):
 # Shopify OAuth – client credentials token cache
 # ---------------------------------------------------------------------------
 
-_token_cache: dict = {}     # keyed by store domain → access_token string
-_products_cache: dict = {}  # keyed by store domain → list of products
+_token_cache: dict = {}          # keyed by store domain → access_token string
+_products_cache: dict = {}       # keyed by store domain → list of products
+_uss_location_cache: dict = {}   # keyed by store domain → USS location_id
+_sku_iid_cache: dict = {}        # keyed by store domain → {sku: inventory_item_id}
 
 
 def _fetch_token(store, client_id, client_secret):
@@ -888,6 +911,136 @@ def get_inventory_levels(store, client_id, client_secret, iids):
     return levels
 
 
+def get_uss_location_id(store, client_id, client_secret):
+    """Return the Shopify location_id for 'Underground Sports Shop', cached per store."""
+    if store in _uss_location_cache:
+        return _uss_location_cache[store]
+    url = f"https://{store}/admin/api/2026-01/locations.json"
+    print(f"[NSLS] locations.json — GET {url}")
+    try:
+        r = _shopify_request("get", url, store, client_id, client_secret, timeout=30)
+        print(f"[NSLS] locations.json — HTTP {r.status_code}")
+        if r.status_code != 200:
+            print(f"[NSLS] locations.json — error body: {r.text[:500]}")
+            return None
+        locations = r.json().get("locations", [])
+        names = [loc.get("name") for loc in locations]
+        print(f"[NSLS] locations.json — found {len(locations)} location(s): {names}")
+        for loc in locations:
+            if (loc.get("name") or "").strip().lower() == "underground sports shop":
+                loc_id = loc["id"]
+                _uss_location_cache[store] = loc_id
+                print(f"[NSLS] locations.json — USS location_id cached: {loc_id}")
+                return loc_id
+        print("[NSLS] locations.json — 'Underground Sports Shop' not found in list above")
+    except Exception as exc:
+        print(f"[NSLS] locations.json — exception: {exc}")
+    return None
+
+
+def build_sku_iid_map(store, client_id, client_secret):
+    """
+    Build a {{sku: inventory_item_id}} dict by paginating /variants.json.
+    Cached per store for the app session; only fetched once.
+    """
+    if store in _sku_iid_cache:
+        return _sku_iid_cache[store]
+    result = {}
+    url = (f"https://{store}/admin/api/2026-01/variants.json"
+           f"?fields=id,sku,inventory_item_id&limit=250")
+    page = 0
+    while url:
+        page += 1
+        print(f"[NSLS] variants.json page {page} — GET {url}")
+        try:
+            r = _shopify_request("get", url, store, client_id, client_secret, timeout=30)
+            print(f"[NSLS] variants.json page {page} — HTTP {r.status_code}")
+            if r.status_code != 200:
+                print(f"[NSLS] variants.json page {page} — error body: {r.text[:500]}")
+                break
+            for v in r.json().get("variants", []):
+                sku = (v.get("sku") or "").strip()
+                iid = v.get("inventory_item_id")
+                if sku and iid:
+                    result[sku] = iid
+            link = r.headers.get("Link", "")
+            url = None
+            if 'rel="next"' in link:
+                for part in link.split(","):
+                    if 'rel="next"' in part:
+                        url = part.strip().split(";")[0].strip(" <>")
+        except Exception as exc:
+            print(f"[NSLS] variants.json page {page} — exception: {exc}")
+            break
+    print(f"[NSLS] variants.json — built SKU→IID map: {len(result)} SKU(s) across {page} page(s)")
+    _sku_iid_cache[store] = result
+    return result
+
+
+def get_live_on_hand_batch(store, client_id, client_secret, skus):
+    """
+    Fetch live available quantities at the Underground Sports Shop location for the
+    given SKUs. Returns {{sku: int}}. Empty dict on any failure — caller falls back to CSV.
+
+    Sequence:
+      1. GET /locations.json  — resolve USS location_id (cached)
+      2. GET /variants.json   — resolve SKUs → inventory_item_ids (cached)
+      3. GET /inventory_levels.json?inventory_item_ids=...&location_ids=...
+    """
+    if not skus:
+        return {}
+
+    # Step 1 — USS location ID
+    location_id = get_uss_location_id(store, client_id, client_secret)
+    if not location_id:
+        print("[NSLS] inventory_levels — skipping: USS location_id unavailable")
+        return {}
+
+    # Step 2 — SKU → inventory_item_id
+    sku_iid_map = build_sku_iid_map(store, client_id, client_secret)
+    iid_to_sku: dict = {}
+    missing: list = []
+    for sku in skus:
+        iid = sku_iid_map.get(sku)
+        if iid:
+            iid_to_sku[iid] = sku
+        else:
+            missing.append(sku)
+    if missing:
+        print(f"[NSLS] inventory_levels — {len(missing)} SKU(s) not in variants map: {missing}")
+    if not iid_to_sku:
+        return {}
+
+    # Step 3 — inventory_levels in batches of 50
+    result: dict = {}
+    all_iids = list(iid_to_sku.keys())
+    for i in range(0, len(all_iids), 50):
+        chunk = all_iids[i:i + 50]
+        ids_str = ",".join(str(x) for x in chunk)
+        url = (f"https://{store}/admin/api/2026-01/inventory_levels.json"
+               f"?inventory_item_ids={ids_str}&location_ids={location_id}&limit=250")
+        print(f"[NSLS] inventory_levels.json — GET {url}")
+        try:
+            r = _shopify_request("get", url, store, client_id, client_secret, timeout=30)
+            print(f"[NSLS] inventory_levels.json — HTTP {r.status_code}")
+            if r.status_code != 200:
+                print(f"[NSLS] inventory_levels.json — error body: {r.text[:500]}")
+                continue
+            levels = r.json().get("inventory_levels", [])
+            print(f"[NSLS] inventory_levels.json — {len(levels)} level(s) returned")
+            for lv in levels:
+                iid = lv["inventory_item_id"]
+                sku = iid_to_sku.get(iid)
+                if sku is not None:
+                    result[sku] = lv.get("available") or 0
+        except Exception as exc:
+            print(f"[NSLS] inventory_levels.json — exception: {exc}")
+            continue
+
+    print(f"[NSLS] inventory_levels — resolved {len(result)}/{len(skus)} SKU(s)")
+    return result
+
+
 def get_all_inventory_costs(store, client_id, client_secret, iids):
     """Batch-fetch cost for a list of inventory_item_ids.  Returns {iid: cost_float}."""
     if not iids:
@@ -977,8 +1130,14 @@ def upload_pdf():
     try:
         parsed = parse_invoice_pdf(fpath)
         parsed["cogs_groups"] = calculate_cogs(parsed["groups"])
-        # Check if this invoice has already been approved
+        # Filename fallback: if PDF text parser couldn't find an invoice number,
+        # extract it from the filename pattern "Inv_{number}_from..." or "Est_{number}_from..."
         inv_num = parsed.get("invoice_number", "").strip()
+        if not inv_num:
+            m = re.search(r"(?:Inv|Est)_(\d+)_", f.filename, re.I)
+            if m:
+                inv_num = m.group(1)
+                parsed["invoice_number"] = inv_num
         duplicate_warning = None
         if inv_num:
             approved = load_config().get("approved_invoices", {})
@@ -1106,14 +1265,20 @@ def approval_data():
     except Exception as e:
         return jsonify({"error": f"Shopify API error: {e}"}), 500
 
-    # Load CSV once for reference matching and on-hand quantities
+    # Load CSV once for reference matching and CSV on-hand fallback
     csv_rows = _load_csv_products() if ref_entries else []
     on_hand_map = load_inventory_on_hand()
 
     # Collect new sku_map entries learned from reference matches; batch-save at end
     new_sku_map_entries = {}
 
-    rows = []
+    # -----------------------------------------------------------------------
+    # Phase 1 — Resolve every invoice item to a SKU + variant, preserving order.
+    # Unmapped / not-found items go straight to output; mapped items are queued
+    # so we can batch-fetch their live on-hand in a single API round-trip.
+    # -----------------------------------------------------------------------
+    resolved = []   # [{type: "done"|"pending", ...}]
+
     for group in cogs_groups:
         for item in group.get("items", []):
             item_code = item.get("item_code", "")
@@ -1125,20 +1290,17 @@ def approval_data():
                 "size":         item.get("size", ""),
                 "color":        item.get("color", ""),
                 "qty":          item.get("qty", 0),
-                "new_cogs":     invoice_cost,   # kept for backwards compat
+                "new_cogs":     invoice_cost,
                 "invoice_cost": invoice_cost,
             }
 
-            # ---------------------------------------------------------------
-            # Priority 1 — Reference match (size+qty → CSV lookup)
-            # ---------------------------------------------------------------
+            # Priority 1 — Reference match
             ref_result  = None
             ref_matched = False
             if ref_entries and csv_rows:
                 ref_result = match_by_reference(item, ref_entries, csv_rows)
                 if ref_result:
                     ref_matched = True
-                    # Queue auto-save so future invoices skip manual mapping
                     map_key = ref_result["sku_map_key"]
                     new_sku_map_entries[map_key] = {
                         "sku":          ref_result["sku"],
@@ -1146,59 +1308,97 @@ def approval_data():
                         "size":         (item.get("size") or "").strip(),
                     }
 
-            # ---------------------------------------------------------------
             # Priority 2 — SKU map lookup
-            # ---------------------------------------------------------------
             if ref_result:
-                sku                  = ref_result["sku"]
+                sku                   = ref_result["sku"]
                 product_name_override = ref_result["product_name"]
             else:
-                mapping              = find_sku_for_item(item, sku_map)
-                sku                  = (mapping.get("sku", "") if isinstance(mapping, dict) else str(mapping or ""))
+                mapping               = find_sku_for_item(item, sku_map)
+                sku                   = (mapping.get("sku", "") if isinstance(mapping, dict) else str(mapping or ""))
                 product_name_override = (mapping.get("product_name", "") if isinstance(mapping, dict) else "")
 
-            # ---------------------------------------------------------------
-            # Priority 3 — Unmapped (manual search dropdown)
-            # ---------------------------------------------------------------
+            # Priority 3 — Unmapped
             if not sku:
-                rows.append({**base,
-                              "sku": "", "prev_cogs": None,
-                              "inventory_item_id": None, "changed": False,
-                              "product_title": product_name_override or item.get("description", ""),
-                              "unmapped": True, "ref_matched": ref_matched})
+                resolved.append({"type": "done", "row": {
+                    **base,
+                    "sku": "", "prev_cogs": None,
+                    "inventory_item_id": None, "changed": False,
+                    "product_title": product_name_override or item.get("description", ""),
+                    "unmapped": True, "ref_matched": ref_matched,
+                }})
                 continue
 
             variant = find_variant_by_sku(products, sku)
             if not variant:
-                rows.append({**base,
-                              "sku": sku, "prev_cogs": None,
-                              "inventory_item_id": None, "changed": False,
-                              "product_title": product_name_override or item.get("description", ""),
-                              "not_found": True, "ref_matched": ref_matched})
+                resolved.append({"type": "done", "row": {
+                    **base,
+                    "sku": sku, "prev_cogs": None,
+                    "inventory_item_id": None, "changed": False,
+                    "product_title": product_name_override or item.get("description", ""),
+                    "not_found": True, "ref_matched": ref_matched,
+                }})
                 continue
 
-            iid = variant["inventory_item_id"]
-            try:
-                prev_cogs = round(get_inventory_item_cost(store, client_id, client_secret, iid), 2)
-            except Exception:
-                prev_cogs = 0.0
+            resolved.append({"type": "pending",
+                              "base": base, "sku": sku, "variant": variant,
+                              "iid": variant["inventory_item_id"],
+                              "product_name_override": product_name_override,
+                              "ref_matched": ref_matched})
 
-            on_hand      = on_hand_map.get(sku, 0)
-            weighted_avg = calc_weighted_avg(prev_cogs, on_hand, invoice_cost, base["qty"])
-            changed      = abs(weighted_avg - prev_cogs) > 0.001
+    # -----------------------------------------------------------------------
+    # Phase 2 — Batch-fetch live on-hand for all pending items in one request.
+    # Any SKU missing from the response falls back to the CSV export value.
+    # -----------------------------------------------------------------------
+    pending = [r for r in resolved if r["type"] == "pending"]
+    all_skus = [r["sku"] for r in pending]
+    try:
+        live_on_hand = get_live_on_hand_batch(store, client_id, client_secret, all_skus)
+    except Exception as ex:
+        live_on_hand = {}
+        print(f"[NSLS] Live on-hand fetch raised unexpectedly, using CSV fallback: {ex}")
 
-            rows.append({
-                **base,
-                "sku":               sku,
-                "prev_cogs":         prev_cogs,
-                "inventory_item_id": iid,
-                "on_hand":           on_hand,
-                "weighted_avg":      weighted_avg,
-                "changed":           changed,
-                "change_amount":     round(weighted_avg - prev_cogs, 2),
-                "product_title":     product_name_override or variant.get("product_title", ""),
-                "ref_matched":       ref_matched,
-            })
+    # -----------------------------------------------------------------------
+    # Phase 3 — Build final rows (prev_cogs still fetched per-item via API).
+    # -----------------------------------------------------------------------
+    rows = []
+    for r in resolved:
+        if r["type"] == "done":
+            rows.append(r["row"])
+            continue
+
+        iid          = r["iid"]
+        sku          = r["sku"]
+        base         = r["base"]
+        invoice_cost = base["invoice_cost"]
+
+        try:
+            prev_cogs = round(get_inventory_item_cost(store, client_id, client_secret, iid), 2)
+        except Exception:
+            prev_cogs = 0.0
+
+        if sku in live_on_hand:
+            on_hand           = live_on_hand[sku]
+            on_hand_estimated = False
+        else:
+            on_hand           = on_hand_map.get(sku, 0)
+            on_hand_estimated = True
+
+        weighted_avg = calc_weighted_avg(prev_cogs, on_hand, invoice_cost, base["qty"])
+        changed      = abs(weighted_avg - prev_cogs) > 0.001
+
+        rows.append({
+            **base,
+            "sku":               sku,
+            "prev_cogs":         prev_cogs,
+            "inventory_item_id": iid,
+            "on_hand":           on_hand,
+            "on_hand_estimated": on_hand_estimated,
+            "weighted_avg":      weighted_avg,
+            "changed":           changed,
+            "change_amount":     round(weighted_avg - prev_cogs, 2),
+            "product_title":     r["product_name_override"] or r["variant"].get("product_title", ""),
+            "ref_matched":       r["ref_matched"],
+        })
 
     # Persist any new mappings learned from the reference table
     if new_sku_map_entries:
@@ -1262,11 +1462,12 @@ def approve():
                 "Date Changed":    today,
                 "Quote #":         invoice_number,
                 "Quote Date":      invoice_date,
-                "Quoted Quantity": str(row.get("qty", 0)),
-                "Previous COGS":   f"${prev:.2f}",
-                "Invoice Cost":    f"${invoice_cost:.2f}",
-                "Weighted Avg":    f"${weighted_avg:.2f}",
-                "Change $":        f"${change:.2f}",
+                "Quoted Quantity":   str(row.get("qty", 0)),
+                "On Hand":           str(int(row.get("on_hand", 0) or 0)),
+                "Previous COGS":     f"${prev:.2f}",
+                "Invoice Cost":      f"${invoice_cost:.2f}",
+                "Weighted Avg COGS": f"${weighted_avg:.2f}",
+                "Change $":          f"${change:.2f}",
             })
         # Payload is a bare JSON array — matches what the Apps Script doPost expects.
         payload = sheet_rows
@@ -1282,10 +1483,12 @@ def approve():
                 headers={"Content-Type": "application/json"},
                 timeout=30,
             )
-            print(f"[NSLS] Sheet response: HTTP {resp.status_code} — {resp.text[:300]}")
+            print(f"[NSLS] Sheet response: HTTP {resp.status_code} — {resp.text[:500]}")
+            if not (200 <= resp.status_code < 300):
+                results["errors"].append(f"Sheet push failed: HTTP {resp.status_code} — {resp.text[:500]}")
             results["sheet"] = {
                 "status": resp.status_code,
-                "body": resp.text[:300],
+                "body": resp.text[:500],
                 "payload": payload,
             }
         except Exception as e:
@@ -1372,6 +1575,8 @@ def config_route():
         # Clear caches so the next API call re-authenticates with fresh data
         _token_cache.clear()
         _products_cache.clear()
+        _uss_location_cache.clear()
+        _sku_iid_cache.clear()
         save_config(cfg)
         return jsonify({"success": True})
     cfg = load_config()
@@ -1472,12 +1677,20 @@ def resolve_sku():
             return jsonify({"found": False})
         iid = variant["inventory_item_id"]
         prev_cogs = round(get_inventory_item_cost(store, client_id, client_secret, iid), 2)
-        on_hand_map = load_inventory_on_hand()
+        live = get_live_on_hand_batch(store, client_id, client_secret, [sku])
+        if sku in live:
+            on_hand           = live[sku]
+            on_hand_estimated = False
+        else:
+            on_hand_map       = load_inventory_on_hand()
+            on_hand           = on_hand_map.get(sku, 0)
+            on_hand_estimated = True
         return jsonify({
             "found": True,
             "inventory_item_id": iid,
             "prev_cogs": prev_cogs,
-            "on_hand": on_hand_map.get(sku, 0),
+            "on_hand": on_hand,
+            "on_hand_estimated": on_hand_estimated,
             "product_title": variant.get("product_title", ""),
         })
     except Exception as e:
