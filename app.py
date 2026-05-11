@@ -11,6 +11,24 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
+
+@app.errorhandler(Exception)
+def _json_exception(e):
+    import traceback
+    tb = traceback.format_exc()
+    print(f"[NSLS] Unhandled exception: {e}\n{tb}")
+    return jsonify({"error": str(e), "detail": tb[-800:]}), 500
+
+
+@app.errorhandler(404)
+def _json_404(e):
+    return jsonify({"error": "Not found", "path": request.path}), 404
+
+
+@app.errorhandler(405)
+def _json_405(e):
+    return jsonify({"error": "Method not allowed"}), 405
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
@@ -1268,7 +1286,7 @@ def upload_pdf():
 
 @app.route("/recalculate", methods=["POST"])
 def recalculate():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     groups = data.get("groups", [])
     try:
         cogs_groups = calculate_cogs(groups)
@@ -1283,7 +1301,7 @@ def cogs_preview():
     Batch-compute weighted-avg COGS for the COGS Calculator tab.
     Returns {gi}-{ii} keyed items with prev_cogs, on_hand, weighted_avg.
     """
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     cogs_groups = data.get("cogs_groups", [])
 
     sku_map = load_sku_map()
@@ -1339,7 +1357,7 @@ def get_sku_map():
 
 @app.route("/sku-map/add", methods=["POST"])
 def add_sku_mapping():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     item_code = data.get("item_code", "").strip()
     sku = data.get("sku", "").strip()
     product_name = data.get("product_name", "").strip()
@@ -1354,7 +1372,7 @@ def add_sku_mapping():
 
 @app.route("/sku-map/delete", methods=["POST"])
 def delete_sku_mapping():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     item_code = data.get("item_code", "").strip()
     m = load_sku_map()
     if item_code in m:
@@ -1365,7 +1383,7 @@ def delete_sku_mapping():
 
 @app.route("/approval-data", methods=["POST"])
 def approval_data():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     cogs_groups    = data.get("cogs_groups", [])
     invoice_number = data.get("invoice_number", "")
     invoice_date   = data.get("invoice_date", "")
@@ -1532,7 +1550,7 @@ def approval_data():
 
 @app.route("/approve", methods=["POST"])
 def approve():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     approved_skus = set(data.get("approved_skus", []))
     invoice_number = data.get("invoice_number", "")
     invoice_date = data.get("invoice_date", "")
@@ -1679,7 +1697,7 @@ def approve():
 @app.route("/config", methods=["GET", "POST"])
 def config_route():
     if request.method == "POST":
-        data = request.json or {}
+        data = request.get_json(silent=True) or {}
         cfg = load_config()
         # Always save store and sheet URL (user can blank them out intentionally).
         # For secret credentials, only overwrite if the new value is non-empty
