@@ -161,13 +161,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:20px 0}
     <h1>NSLS COGS Manager</h1>
     <span class="subtitle">Underground Sports Shop Invoice Processor</span>
   </div>
-  <div style="display:flex;align-items:center;gap:12px">
-    <span class="sku-badge" id="sku-count-badge">{{ sku_count }} SKUs mapped</span>
-    {% if user_email %}
-    <span style="font-size:12px;color:var(--muted)">{{ user_name or user_email }}</span>
-    <a href="/logout" style="font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px">Sign out</a>
-    {% endif %}
-  </div>
+  <span class="sku-badge" id="sku-count-badge">{{ sku_count }} SKUs mapped</span>
 </div>
 
 <!-- Tabs -->
