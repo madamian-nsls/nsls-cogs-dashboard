@@ -1628,12 +1628,11 @@ def approve():
                 product_name = f"DUPLICATE - Invoice previously approved | {product_name}"
             sheet_rows.append({
                 "Product Name":    product_name,
-                "SKU":             row.get("sku", ""),
+                "Sku":             row.get("sku", ""),
                 "Date Changed":    today,
                 "Quote #":         invoice_number,
                 "Quote Date":      invoice_date,
                 "Quoted Quantity":   str(row.get("qty", 0)),
-                "On Hand":           str(int(row.get("on_hand", 0) or 0)),
                 "Previous COGS":     f"${prev:.2f}",
                 "Invoice Cost":      f"${invoice_cost:.2f}",
                 "Weighted Avg COGS": f"${weighted_avg:.2f}",
