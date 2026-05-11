@@ -1,0 +1,10 @@
+#!/bin/bash
+case "$1" in
+  cogs)
+    exec gunicorn app:app
+    ;;
+  *)
+    echo "Usage: ./run cogs"
+    exit 1
+    ;;
+esac
