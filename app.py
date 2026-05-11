@@ -1,4 +1,5 @@
 import os
+import base64
 import csv
 import json
 import re
@@ -14,14 +15,22 @@ app = Flask(__name__)
 # HTTP Basic Auth — set DASHBOARD_PASSWORD env var to enable.
 # Username is ignored; any non-empty password match grants access.
 # ---------------------------------------------------------------------------
-_DASH_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+_DASH_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "").strip()
+print(f"[NSLS] Auth enabled: {bool(_DASH_PASSWORD)}")
 
 
 def _check_auth(req):
     if not _DASH_PASSWORD:
         return True
-    creds = req.authorization
-    return creds is not None and creds.password == _DASH_PASSWORD
+    auth_header = req.headers.get("Authorization", "")
+    if not auth_header.lower().startswith("basic "):
+        return False
+    try:
+        decoded = base64.b64decode(auth_header[6:]).decode("utf-8", errors="replace")
+        password = decoded.split(":", 1)[1] if ":" in decoded else decoded
+        return password == _DASH_PASSWORD
+    except Exception:
+        return False
 
 
 def _auth_required():
