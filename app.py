@@ -5,11 +5,77 @@ import re
 import requests
 import pdfplumber
 from datetime import date
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 from werkzeug.utils import secure_filename
+from authlib.integrations.flask_client import OAuth
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
+
+# ---------------------------------------------------------------------------
+# Google OAuth — restricted to @nsls.org
+# ---------------------------------------------------------------------------
+oauth = OAuth(app)
+oauth.register(
+    name="google",
+    client_id=os.environ.get("GOOGLE_CLIENT_ID"),
+    client_secret=os.environ.get("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
+)
+
+_OAUTH_ENABLED = bool(os.environ.get("GOOGLE_CLIENT_ID"))
+_ALLOWED_DOMAIN = "nsls.org"
+_PUBLIC_PATHS = {"/login", "/login/google", "/auth/callback", "/logout"}
+
+
+@app.before_request
+def require_login():
+    if not _OAUTH_ENABLED:
+        return
+    if request.path in _PUBLIC_PATHS:
+        return
+    if not session.get("user_email"):
+        return redirect(url_for("login"))
+
+
+@app.route("/login")
+def login():
+    if not _OAUTH_ENABLED:
+        return redirect(url_for("index"))
+    if session.get("user_email"):
+        return redirect(url_for("index"))
+    return render_template("login.html")
+
+
+@app.route("/login/google")
+def login_google():
+    redirect_uri = url_for("auth_callback", _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@app.route("/auth/callback")
+def auth_callback():
+    token = oauth.google.authorize_access_token()
+    user_info = token.get("userinfo") or oauth.google.userinfo()
+    email = (user_info.get("email") or "").lower()
+    if not email.endswith(f"@{_ALLOWED_DOMAIN}"):
+        session.clear()
+        return (
+            f"<h2>Access denied</h2><p>Only @{_ALLOWED_DOMAIN} accounts are allowed."
+            f'<br><a href="/login">Try again</a></p>'
+        ), 403
+    session["user_email"] = email
+    session["user_name"] = user_info.get("name", email)
+    return redirect(url_for("index"))
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    if _OAUTH_ENABLED:
+        return redirect(url_for("login"))
+    return redirect(url_for("index"))
 
 
 @app.errorhandler(Exception)
@@ -1249,7 +1315,9 @@ def index():
     cfg = load_config()
     sku_map = load_sku_map()
     return render_template("index.html", config=cfg, sku_map=sku_map,
-                           sku_count=len(sku_map))
+                           sku_count=len(sku_map),
+                           user_email=session.get("user_email"),
+                           user_name=session.get("user_name"))
 
 
 @app.route("/upload", methods=["POST"])

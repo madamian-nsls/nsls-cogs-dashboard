@@ -161,7 +161,13 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:20px 0}
     <h1>NSLS COGS Manager</h1>
     <span class="subtitle">Underground Sports Shop Invoice Processor</span>
   </div>
-  <span class="sku-badge" id="sku-count-badge">{{ sku_count }} SKUs mapped</span>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="sku-badge" id="sku-count-badge">{{ sku_count }} SKUs mapped</span>
+    {% if user_email %}
+    <span style="font-size:12px;color:var(--muted)">{{ user_name or user_email }}</span>
+    <a href="/logout" style="font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--border);border-radius:4px;padding:3px 8px">Sign out</a>
+    {% endif %}
+  </div>
 </div>
 
 <!-- Tabs -->
@@ -335,8 +341,8 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:20px 0}
           <th class="text-right">Qty</th>
           <th class="text-right">On Hand</th>
           <th class="text-right">Invoice Cost</th>
-          <th class="text-right">Weighted Avg</th>
           <th class="text-right">Prev COGS</th>
+          <th class="text-right">Weighted Avg</th>
           <th class="text-right">Change $</th>
           <th>Status</th>
         </tr></thead>
@@ -674,7 +680,7 @@ function renderCOGSGroups(cogsGroups) {
               <td>${esc(item.color)}</td>
               <td>${esc(item.size)}</td>
               <td class="text-right">${item.qty}</td>
-              <td class="text-right">$${(item.unit_cost||0).toFixed(4)}</td>
+              <td class="text-right">$${(item.unit_cost||0).toFixed(2)}</td>
               <td class="text-right">$${(item.fee_per_unit||0).toFixed(4)}</td>
               <td class="text-right"><strong>$${(item.final_cogs||0).toFixed(2)}</strong></td>
               <td class="text-right" id="wacell-${gi}-${ii}"><span class="text-muted" style="font-size:11px">…</span></td>
@@ -960,6 +966,45 @@ function _pickerInput(i) {
   </div>`;
 }
 
+function _editSkuBtn(i) {
+  return `<button class="btn btn-ghost btn-sm" onclick="editSkuOnRow(${i})"
+    style="padding:2px 6px;margin-left:4px;font-size:13px;line-height:1" title="Change SKU">&#9998;</button>`;
+}
+
+function editSkuOnRow(idx) {
+  const row = approvalRows[idx];
+  if (!row) return;
+  row._origState = {
+    sku: row.sku, prev_cogs: row.prev_cogs, on_hand: row.on_hand,
+    invoice_cost: row.invoice_cost, weighted_avg: row.weighted_avg,
+    inventory_item_id: row.inventory_item_id, product_title: row.product_title,
+    changed: row.changed, change_amount: row.change_amount,
+    unmapped: row.unmapped, not_found: row.not_found,
+  };
+  const skuCell = document.getElementById('sku-cell-' + idx);
+  if (skuCell) skuCell.innerHTML = _pickerInput(idx) +
+    `<button class="btn btn-ghost btn-sm" onclick="cancelSkuEdit(${idx})"
+      style="padding:2px 6px;margin-left:4px;font-size:13px;line-height:1" title="Cancel">&#10005;</button>`;
+  const input = document.getElementById('spi-' + idx);
+  if (input) { input.value = row.sku || ''; input.focus(); }
+}
+
+function cancelSkuEdit(idx) {
+  const row = approvalRows[idx];
+  if (!row || !row._origState) return;
+  const orig = row._origState;
+  Object.assign(row, orig);
+  delete row._origState;
+  const skuCell = document.getElementById('sku-cell-' + idx);
+  if (skuCell) {
+    const badge = orig.not_found
+      ? `<span class="mono">${esc(orig.sku)}</span>`
+      : `<span class="badge badge-accent mono">${esc(orig.sku)}</span>`;
+    skuCell.innerHTML = badge + _editSkuBtn(idx);
+  }
+  closeSkuDropdown();
+}
+
 function renderApprovalTable(rows, invNum, invDate) {
   const changed  = rows.filter(r => r.changed);
   const unmapped = rows.filter(r => r.unmapped);
@@ -996,7 +1041,7 @@ function renderApprovalTable(rows, invNum, invDate) {
       cbDisabled = 'disabled'; cbChecked = ''; rowStyle = 'style="opacity:.7"';
 
     } else if (row.not_found) {
-      skuCell         = `<span class="mono">${esc(row.sku)}</span>`;
+      skuCell         = `<span class="mono">${esc(row.sku)}</span>${_editSkuBtn(i)}`;
       prevCell        = `<span class="text-muted">—</span>`;
       changeCell      = `—`;
       onHandCell      = `<span class="text-muted">—</span>`;
@@ -1009,10 +1054,12 @@ function renderApprovalTable(rows, invNum, invDate) {
       const amt = row.change_amount || 0;
       const cls = amt > 0 ? 'change-pos' : (amt < 0 ? 'change-neg' : '');
       const refBadge = row.ref_matched ? ` <span class="badge" style="background:rgba(16,185,129,.12);color:var(--success);font-size:10px;padding:1px 5px" title="Matched via SKU Reference">&#10003; ref</span>` : '';
-      skuCell         = `<span class="badge badge-accent mono">${esc(row.sku)}</span>`;
+      skuCell         = `<span class="badge badge-accent mono">${esc(row.sku)}</span>${_editSkuBtn(i)}`;
       prevCell        = row.prev_cogs !== null ? '$'+row.prev_cogs.toFixed(2) : '<span class="text-muted">—</span>';
       changeCell      = amt !== 0 ? `<span class="${cls}">${amt.toFixed(2)}</span>` : '—';
-      onHandCell      = (row.on_hand !== undefined && row.on_hand !== null) ? row.on_hand : '—';
+      onHandCell      = (row.on_hand !== undefined && row.on_hand !== null)
+        ? row.on_hand + (row.on_hand_estimated ? ' <span title="Estimated from CSV export — live API unavailable" style="color:var(--muted);font-size:10px">~</span>' : '')
+        : '—';
       weightedAvgCell = row.weighted_avg !== undefined
         ? `<strong>$${row.weighted_avg.toFixed(2)}</strong>`
         : `<strong>${invoiceCostCell}</strong>`;
@@ -1031,8 +1078,8 @@ function renderApprovalTable(rows, invNum, invDate) {
       <td class="text-right">${row.qty}</td>
       <td class="text-right" id="on-hand-cell-${i}">${onHandCell}</td>
       <td class="text-right" id="invoice-cost-cell-${i}">${invoiceCostCell}</td>
-      <td class="text-right" id="weighted-avg-cell-${i}">${weightedAvgCell}</td>
       <td class="text-right" id="prev-cogs-cell-${i}">${prevCell}</td>
+      <td class="text-right" id="weighted-avg-cell-${i}">${weightedAvgCell}</td>
       <td class="text-right" id="change-cell-${i}">${changeCell}</td>
       <td id="status-cell-${i}">${statusCell}</td>
     </tr>`;
@@ -1256,8 +1303,9 @@ async function selectSkuOption(evt, optIdx) {
     }
 
     const row         = approvalRows[idx];
-    const prevCogs    = data.prev_cogs;
-    const onHand      = data.on_hand || 0;
+    const prevCogs         = data.prev_cogs;
+    const onHand           = data.on_hand || 0;
+    const onHandEstimated  = !!data.on_hand_estimated;
     const invoiceCost = row.invoice_cost !== undefined ? row.invoice_cost : (row.new_cogs || 0);
     const qty         = row.qty || 0;
     const weightedAvg = onHand <= 0
@@ -1275,6 +1323,7 @@ async function selectSkuOption(evt, optIdx) {
       inventory_item_id: data.inventory_item_id,
       prev_cogs: prevCogs,
       on_hand: onHand,
+      on_hand_estimated: onHandEstimated,
       invoice_cost: invoiceCost,
       weighted_avg: weightedAvg,
       product_title: data.product_title || row.product_title,
@@ -1321,16 +1370,16 @@ async function selectSkuOption(evt, optIdx) {
       }
     }
 
-    // Update SKU cell to show badge + clear button
+    // Update SKU cell to show badge + edit button
     const skuCell = document.getElementById('sku-cell-' + idx);
     if (skuCell) skuCell.innerHTML =
-      `<span class="badge badge-accent mono">${esc(sku)}</span>
-       <button class="btn btn-ghost btn-sm" onclick="clearSkuPick(${idx})"
-         style="padding:2px 6px;margin-left:4px;font-size:13px;line-height:1">×</button>`;
+      `<span class="badge badge-accent mono">${esc(sku)}</span>${_editSkuBtn(idx)}`;
+    delete approvalRows[idx]._origState;
 
     // Update On Hand cell
     const onHandCellEl = document.getElementById('on-hand-cell-' + idx);
-    if (onHandCellEl) onHandCellEl.textContent = onHand;
+    if (onHandCellEl) onHandCellEl.innerHTML = onHand +
+      (onHandEstimated ? ' <span title="Estimated from CSV export — live API unavailable" style="color:var(--muted);font-size:10px">~</span>' : '');
 
     // Update Weighted Avg cell
     const weightedAvgCellEl = document.getElementById('weighted-avg-cell-' + idx);
@@ -1376,7 +1425,12 @@ async function selectSkuOption(evt, optIdx) {
 }
 
 function clearSkuPick(idx) {
-  // Re-inject the picker input
+  // If editing an already-mapped row, restore original state
+  if (approvalRows[idx] && approvalRows[idx]._origState) {
+    cancelSkuEdit(idx);
+    return;
+  }
+  // Re-inject the picker input (unmapped row case)
   const skuCell = document.getElementById('sku-cell-' + idx);
   if (skuCell) skuCell.innerHTML = _pickerInput(idx);
 
